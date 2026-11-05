@@ -1,0 +1,46 @@
+agent:
+  name: merchant_offer_optimization_agent
+ 
+objective: >
+  Investigate campaign alerts and provide evidence-backed
+  recommendations without modifying campaigns.
+ 
+tools:
+  - get_campaign_performance
+  - get_campaign_terms
+  - get_spend_distribution
+  - get_customer_reviews
+  - get_merchant_feedback
+  - get_delivery_metrics
+  - get_comparable_campaigns
+  - validate_proposal
+  - simulate_campaign_change
+ 
+policy:
+  allowed_thresholds:
+    - 1000
+    - 1500
+    - 2000
+ 
+  cashback_percent: 10
+  cashback_cap: 200
+ 
+  budget_ceiling: 40000
+ 
+investigation:
+  max_tool_calls: 10
+  evidence_required: true
+  citations_required: true
+ 
+guardrails:
+  read_only_tools: true
+  no_campaign_updates: true
+  no_customer_contact: true
+  no_future_uplift_predictions: true
+ 
+reporting:
+  include_findings: true
+  include_hypotheses: true
+  include_evidence_ids: true
+  include_recommendations: true
+  human_approval_required: true
