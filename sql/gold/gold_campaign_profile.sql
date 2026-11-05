@@ -35,7 +35,7 @@ WITH campaign_profile_base AS (
             ELSE 1
         END AS max_redemptions_per_customer,
 
-        COALESCE(c.status, 'UNKNOWN') AS campaign_status --- unknown return karo agr status me kuch naa ho toh
+        COALESCE(c.status, 'UNKNOWN') AS campaign_status
 
     FROM `prj-imp-act-campaign.offers_silver.campaigns` c
 
@@ -51,8 +51,8 @@ SELECT
     cp.merchant_category,
     cp.merchant_city,
     cp.objective,
-    cp.cmp_start_date
-    cp.cmp_end_date
+    cp.cmp_start_date,
+    cp.cmp_end_date,
     cp.min_spend,
     cp.cashback_pct,
     cp.cashback_cap,
@@ -62,8 +62,7 @@ SELECT
     cp.campaign_status,
     cp.batch_id,
 
-
-    DATETIME(CURRENT_TIMESTAMP(), 'Asia/Kolkata')AS ingestion_time,
+    DATETIME(CURRENT_TIMESTAMP(), 'Asia/Kolkata') AS ingestion_time,
 
     CASE
         WHEN cp.merchant_name IS NULL

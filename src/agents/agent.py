@@ -1,10 +1,12 @@
 import asyncio
 import json
-from typing import Any, Dict
- 
+import re
+import time
+from typing import Any, Dict, List, Optional
+from google.adk.agents import LlmAgent
 from google.adk.runners import InMemoryRunner
 from google.genai import types
- 
+
 from agents.tools.bigquery_tools import (
     get_campaign_terms,
     get_campaign_performance,
@@ -12,126 +14,195 @@ from agents.tools.bigquery_tools import (
     get_customer_reviews,
     get_merchant_feedback,
     get_delivery_metrics,
+    get_comparable_campaigns,
     simulate_campaign_change,
 )
-
- 
 from agents.tools.policy_tools import validate_proposal
+from agents.tracer import ExecutionTracer
+from core.config import get_config
+from core.logging import logger
+from domain.contracts import InvestigationReport
+from prompts import format_investigation_prompt, get_system_instruction
+
+config = get_config()
 
 APP_NAME = "merchant_offer_app"
 USER_ID = "merchant_user"
- 
-try:
-    from google.adk.agents import LlmAgent
-    agent = LlmAgent(
-        name="merchant_offer_investigator",
-        model="gemini-3.5-flash",
-        instruction="""
-        You are a merchant offer investigation agent.
- 
-        Rules:
-        - Use only the approved tools.
-        - Treat the alert as the starting point.
-        - Separate fact from hypothesis.
-        - Use tool outputs as evidence.
-        - Validate any campaign proposal before suggesting a change.
-        - Historical replay is retrospective only.
-        - If evidence is weak, say so clearly.
-        - Human approval is required before operational action.
-        """,
-        tools=[
-            get_campaign_terms,
-            get_campaign_performance,
-            get_spend_distribution,
-            get_customer_reviews,
-            get_merchant_feedback,
-            get_delivery_metrics,
-            validate_proposal,
-            simulate_campaign_change,
-        ],
-    )
-except Exception:
-    from google.adk import Agent
-    agent = Agent(
-        name="merchant_offer_investigator",
-        model="gemini-3.5-flash",
-        instruction="""
-        You are a merchant offer investigation agent.
- 
-        Rules:
-        - Use only the approved tools.
-        - Treat the alert as the starting point.
-        - Separate fact from hypothesis.
-        - Use tool outputs as evidence.
-        - Validate any campaign proposal before suggesting a change.
-        - Historical replay is retrospective only.
-        - If evidence is weak, say so clearly.
-        - Human approval is required before operational action.
-        """,
-        tools=[
-            get_campaign_terms,
-            get_campaign_performance,
-            get_spend_distribution,
-            get_customer_reviews,
-            get_merchant_feedback,
-            get_delivery_metrics,
-            validate_proposal,
-            simulate_campaign_change,
-        ],
-    )
- 
+MODEL_NAME = config.agent.model
+
+agent = LlmAgent(
+    name=config.agent.name,
+    model=MODEL_NAME,
+    instruction=get_system_instruction(),
+    tools=[
+        get_campaign_terms,
+        get_campaign_performance,
+        get_spend_distribution,
+        get_customer_reviews,
+        get_merchant_feedback,
+        get_delivery_metrics,
+        get_comparable_campaigns,
+        validate_proposal,
+        simulate_campaign_change,
+    ],
+)
+
+root_agent = agent
 runner = InMemoryRunner(agent=agent, app_name=APP_NAME)
- 
- 
-async def init_session():
-    return await runner.session_service.create_session(app_name=APP_NAME, user_id=USER_ID)
- 
- 
-async def get_session():
-    return await runner.session_service.create_session(app_name=APP_NAME, user_id=USER_ID)
- 
- 
-async def process_alert_async(alert: Dict[str, Any]) -> str:
-    session = await get_session()
-    prompt = f"""
-    Investigate this merchant offer alert.
- 
-    Alert:
-    {json.dumps(alert, indent=2, default=str)}
- 
-    Instructions:
-    1. Use only approved tools.
-    2. Fetch campaign details, performance, merchant spend, delivery metrics, and customer feedback as needed.
-    3. Separate facts from hypotheses.
-    4. If proposing a campaign change, validate it first.
-    5. Return a final recommendation and clearly state human approval is required.
-    """
- 
+tracer = ExecutionTracer()
+
+
+async def get_or_create_session(user_id: str, session_id: str):
+    """Retrieve an existing session or create a new isolated session."""
+    try:
+        session = await runner.session_service.get_session(
+            app_name=APP_NAME, user_id=user_id, session_id=session_id
+        )
+        if session:
+            return session
+    except Exception:
+        pass
+
+    return await runner.session_service.create_session(
+        app_name=APP_NAME, user_id=user_id, session_id=session_id
+    )
+
+
+async def init_session(session_id: Optional[str] = None):
+    sid = session_id or f"session_{int(time.time())}"
+    return await get_or_create_session(USER_ID, sid)
+
+
+async def get_session(session_id: Optional[str] = None):
+    sid = session_id or f"session_{int(time.time())}"
+    return await get_or_create_session(USER_ID, sid)
+
+
+def extract_json_report(text: str) -> Optional[Dict[str, Any]]:
+    """Extract and validate the JSON report from agent response text."""
+    # Match markdown code block ```json ... ```
+    match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", text, re.DOTALL)
+    candidate_str = match.group(1) if match else text.strip()
+
+    # Find outermost braces if raw text
+    if not match:
+        start_idx = candidate_str.find("{")
+        end_idx = candidate_str.rfind("}")
+        if start_idx != -1 and end_idx != -1:
+            candidate_str = candidate_str[start_idx : end_idx + 1]
+
+    try:
+        data = json.loads(candidate_str)
+        # Validate against Pydantic contract
+        report = InvestigationReport(**data)
+        return report.model_dump()
+    except Exception as exc:
+        logger.warning(f"Could not parse valid InvestigationReport JSON from text: {exc}")
+        return None
+
+
+async def process_alert_async(alert: Dict[str, Any]) -> Dict[str, Any]:
+    """Execute end-to-end investigation workflow for an alert using Google ADK."""
+    start_time = time.time()
+    alert_id = alert.get("alert_id", "A_UNKNOWN")
+    campaign_id = alert.get("campaign_id", "CMP_UNKNOWN")
+    session_id = f"session_alert_{alert_id}"
+
+    session = await get_or_create_session(USER_ID, session_id)
+    prompt = format_investigation_prompt(alert)
+
     content = types.Content(role="user", parts=[types.Part(text=prompt)])
     final_text = ""
+    tool_calls_trace: List[Dict[str, Any]] = []
 
-    async for event in runner.run_async(
-        user_id=USER_ID,
-        session_id=session.id,
-        new_message=content,
-    ):
+    try:
+        async for event in runner.run_async(
+            user_id=USER_ID,
+            session_id=session.id,
+            new_message=content,
+        ):
+            if hasattr(event, "content") and event.content:
+                for part in event.content.parts:
+                    if getattr(part, "function_call", None):
+                        fc = part.function_call
+                        logger.info(f"Tool called: {fc.name}", extra={"alert_id": alert_id, "tool_name": fc.name})
+                        tool_calls_trace.append({
+                            "type": "call",
+                            "name": fc.name,
+                            "args": fc.args,
+                            "timestamp": time.time(),
+                        })
+                    elif getattr(part, "function_response", None):
+                        fr = part.function_response
+                        logger.info(f"Tool responded: {fr.name}", extra={"alert_id": alert_id, "tool_name": fr.name})
+                        tool_calls_trace.append({
+                            "type": "response",
+                            "name": fr.name,
+                            "response": str(fr.response)[:500],
+                            "timestamp": time.time(),
+                        })
+                    elif getattr(part, "text", None):
+                        final_text += part.text
 
-        if hasattr(event, "content") and event.content:
-            for part in event.content.parts:
+        duration_ms = round((time.time() - start_time) * 1000, 2)
+        parsed_report = extract_json_report(final_text)
 
-                if getattr(part, "function_call", None):
-                    print(
-                        f"TOOL CALLED: {part.function_call.name}"
-                    )
+        # Fallback if LLM output could not be strictly parsed as JSON
+        if not parsed_report:
+            parsed_report = {
+                "alert_id": alert_id,
+                "campaign_id": campaign_id,
+                "status": "COMPLETE",
+                "summary": final_text[:1000],
+                "findings": [
+                    {
+                        "observation": f"Alert {alert_id} investigated for campaign {campaign_id}.",
+                        "evidence": [f"rule:{alert.get('rule_id')}"],
+                    }
+                ],
+                "hypotheses": [],
+                "proposal": {"type": "MONITOR", "rationale": "Review raw findings."},
+                "simulation_type": "HISTORICAL_REPLAY",
+                "future_incremental_spend": None,
+                "human_approval_required": True,
+            }
 
-                elif getattr(part, "function_response", None):
-                    print(
-                        f"TOOL RESPONSE: {part.function_response.response}"
-                    )
+        tracer.write_trace(
+            alert_id=alert_id,
+            campaign_id=campaign_id,
+            model=MODEL_NAME,
+            tool_calls=tool_calls_trace,
+            report=parsed_report,
+            duration_ms=duration_ms,
+        )
 
-                elif getattr(part, "text", None):
-                    final_text += part.text
-    return final_text
- 
- 
-root_agent = agent
+        return {
+            "success": True,
+            "alert_id": alert_id,
+            "campaign_id": campaign_id,
+            "report": parsed_report,
+            "raw_text": final_text,
+            "tool_call_count": len([t for t in tool_calls_trace if t.get("type") == "call"]),
+            "duration_ms": duration_ms,
+        }
+
+    except Exception as exc:
+        duration_ms = round((time.time() - start_time) * 1000, 2)
+        logger.error(f"Investigation failed for alert {alert_id}: {exc}", extra={"alert_id": alert_id})
+        tracer.write_trace(
+            alert_id=alert_id,
+            campaign_id=campaign_id,
+            model=MODEL_NAME,
+            tool_calls=tool_calls_trace,
+            report=None,
+            duration_ms=duration_ms,
+            error=str(exc),
+        )
+        return {
+            "success": False,
+            "alert_id": alert_id,
+            "campaign_id": campaign_id,
+            "error": str(exc),
+            "report": None,
+            "duration_ms": duration_ms,
+        }

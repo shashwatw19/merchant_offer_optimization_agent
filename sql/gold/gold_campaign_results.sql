@@ -64,6 +64,7 @@ redemption_summary AS (
         ) AS cashback_amt_awarded
 
     FROM `prj-imp-act-campaign.offers_silver.offer_redemptions`
+    WHERE UPPER(status) = 'AWARDED'
 
     GROUP BY campaign_id
 ),
@@ -93,8 +94,8 @@ txn_summary AS (
 SELECT
     cb.campaign_id,
     cb.merchant_id,
-    cb.measurement_start_date
-    cb.measurement_end_date
+    cb.measurement_start_date,
+    cb.measurement_end_date,
    
     COALESCE(ss.targeted_customer_count, 0) AS targeted_customer_count,
 

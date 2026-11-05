@@ -2,15 +2,19 @@
 
 set -e
 
-PROJECT_ID="prj-imp-act-campaign"
-LOCATION="asia-south1"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
+PROJECT_ID="${GCP_PROJECT:-prj-imp-act-campaign}"
+LOCATION="${BQ_LOCATION:-asia-south1}"
 
 echo "======================================"
 echo "Running Gold Layer Load"
+echo "Project      : $PROJECT_ID"
+echo "Location     : $LOCATION"
 echo "======================================"
 
-for file in ../sql/gold/*.sql
+for file in "$PROJECT_ROOT"/sql/gold/*.sql
 do
     echo "Executing $file"
 

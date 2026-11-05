@@ -1,292 +1,106 @@
 import argparse
-import hashlib
-from datetime import datetime
+import json
+import sys
+from pathlib import Path
+from typing import Any, Dict, List
 
-from google.cloud import bigquery
+# Ensure src is on sys.path
+SRC_DIR = Path(__file__).resolve().parent / "src"
+if str(SRC_DIR) not in sys.path:
+    sys.path.insert(0, str(SRC_DIR))
 
-PROJECT_ID = "prj-imp-act-campaign"
-ALERT_TABLE = "prj-imp-act-campaign.offers_gold.alerts"
-
-QUERY_BY_RULE = {
-
-    # R1: Low Redemption Rate
-    "R1": """
-        WITH campaign_fact AS (
-            SELECT
-                campaign_id,
-                merchant_id,
-                ROUND(
-                    SAFE_DIVIDE(
-                        redeeming_customer_count,
-                        NULLIF(targeted_customer_count, 0)
-                    ) * 100,
-                    2
-                ) AS redemption_rate
-            FROM `prj-imp-act-campaign.offers_gold.gold_campaign_results`
-            WHERE targeted_customer_count > 0
-        )
-        SELECT
-            campaign_id,
-            merchant_id,
-            'R1' AS rule_id,
-            redemption_rate AS metric_value,
-            5.00 AS threshold,
-            'OPEN' AS status
-        FROM campaign_fact
-        WHERE redemption_rate < 5
-        ORDER BY campaign_id
-    """,
-
-    # R2: Campaign Avg Transaction Amount < 85% Merchant Average
-    "R2": """
-        WITH campaign_fact AS (
-            SELECT
-                cr.campaign_id,
-                cr.merchant_id,
-
-                ROUND(
-                    SAFE_DIVIDE(
-                        cr.posted_txn_amount,
-                        NULLIF(cr.posted_txn_count, 0)
-                    ),
-                    2
-                ) AS avg_txn_amount,
-
-                msp.avg_txn_amount AS avg_merchant_txn_amount
-
-            FROM `prj-imp-act-campaign.offers_gold.gold_campaign_results` cr
-
-            INNER JOIN
-            `prj-imp-act-campaign.offers_gold.gold_merchant_spend_profile` msp
-                ON cr.merchant_id = msp.merchant_id
-
-            WHERE cr.posted_txn_count > 0
-              AND msp.avg_txn_amount IS NOT NULL
-        )
-
-        SELECT
-            campaign_id,
-            merchant_id,
-            'R2' AS rule_id,
-            avg_txn_amount AS metric_value,
-            ROUND(avg_merchant_txn_amount * 0.85, 2) AS threshold,
-            'OPEN' AS status
-        FROM campaign_fact
-        WHERE avg_txn_amount < (avg_merchant_txn_amount * 0.85)
-        ORDER BY campaign_id
-    """,
-
-    # R3: Existing Customer Share >= 75%
-    "R3": """
-        WITH redeeming_customers AS (
-
-            SELECT
-                c.campaign_id,
-                c.merchant_id,
-                rr.customer_id,
-
-                MAX(
-                    CASE
-                        WHEN CAST(tx.txn_ts AS DATETIME)
-                             < DATETIME(c.start_date)
-                         AND tx.merchant_id = c.merchant_id
-                         AND UPPER(tx.txn_status) = 'POSTED'
-                        THEN 1
-                        ELSE 0
-                    END
-                ) AS is_existing_customer
-
-            FROM `prj-imp-act-campaign.offers_silver.offer_redemptions` rr
-
-            INNER JOIN
-            `prj-imp-act-campaign.offers_silver.campaigns` c
-                ON c.campaign_id = rr.campaign_id
-
-            LEFT JOIN
-            `prj-imp-act-campaign.offers_silver.transactions` tx
-                ON tx.customer_id = rr.customer_id
-               AND tx.merchant_id = c.merchant_id
-               AND UPPER(tx.txn_status) = 'POSTED'
-               AND CAST(tx.txn_ts AS DATETIME)
-                   < DATETIME(c.start_date)
-
-            WHERE UPPER(c.objective) = 'ACQUIRE_NEW'
-
-            GROUP BY
-                c.campaign_id,
-                c.merchant_id,
-                rr.customer_id
-        ),
-
-        campaign_fact AS (
-
-            SELECT
-                campaign_id,
-                merchant_id,
-
-                COUNT(DISTINCT customer_id)
-                    AS redeeming_customers,
-
-                COUNT(
-                    DISTINCT CASE
-                        WHEN is_existing_customer = 1
-                        THEN customer_id
-                    END
-                ) AS existing_customer_redeemers,
-
-                ROUND(
-                    SAFE_DIVIDE(
-                        COUNT(
-                            DISTINCT CASE
-                                WHEN is_existing_customer = 1
-                                THEN customer_id
-                            END
-                        ),
-                        COUNT(DISTINCT customer_id)
-                    ),
-                    2
-                ) AS existing_customer_share
-
-            FROM redeeming_customers
-
-            GROUP BY
-                campaign_id,
-                merchant_id
-        )
-
-        SELECT
-            campaign_id,
-            merchant_id,
-            'R3' AS rule_id,
-            existing_customer_share * 100 AS metric_value,
-            75.00 AS threshold,
-            'OPEN' AS status
-        FROM campaign_fact
-        WHERE existing_customer_share >= 0.75
-        ORDER BY campaign_id
-    """
-}
-
-METRIC_NAME_MAP = {
-    "R1": "redemption_rate",
-    "R2": "avg_campaign_txn_amount",
-    "R3": "existing_customer_share_pct"
-}
+import core.bigquery_client as bq_client
+from core.config import get_config
+from core.logging import logger
+from domain.rules import get_rule_queries, parse_alert_row
 
 
-def generate_alert_id(rule_id, campaign_id):
-    raw = f"{rule_id}:{campaign_id}".encode("utf-8")
-    digest = hashlib.sha256(raw).hexdigest()
-    numeric = int(digest[:8], 16)
-    return f"A{numeric % 9000 + 1000}"
+def run_rule_alerts(rule_id: str, project_id: str) -> List[Dict[str, Any]]:
+    """Execute a single alert rule query and return standardized alert payloads."""
+    queries = get_rule_queries(project_id)
+    if rule_id not in queries:
+        logger.error(f"Unknown rule ID '{rule_id}'. Allowed: {list(queries.keys())}")
+        return []
+
+    sql = queries[rule_id]
+    logger.info(f"Evaluating rule {rule_id} in BigQuery...")
+    try:
+        rows = bq_client.execute_query(sql)
+        alerts = [parse_alert_row(row) for row in rows]
+        logger.info(f"Rule {rule_id} triggered {len(alerts)} alert(s).")
+        return alerts
+    except Exception as exc:
+        logger.error(f"Failed executing query for rule {rule_id}: {exc}")
+        return []
 
 
-def build_alert_payload(row):
+def run_all_alerts(project_id: str, selected_rule: str = None) -> List[Dict[str, Any]]:
+    """Execute all configured deterministic alert rules (R1, R2, R3)."""
+    rules_to_run = [selected_rule] if selected_rule else ["R1", "R2", "R3"]
+    all_alerts = []
 
-    rule_id = row["rule_id"]
+    for rule_id in rules_to_run:
+        rule_alerts = run_rule_alerts(rule_id, project_id)
+        all_alerts.extend(rule_alerts)
 
-    return {
-        "alert_id": generate_alert_id(
-            rule_id,
-            row["campaign_id"]
-        ),
-        "campaign_id": row["campaign_id"],
-        "merchant_id": row.get("merchant_id"),
-        "rule_id": rule_id,
-        "metric_name": METRIC_NAME_MAP[rule_id],
-        "metric_value": float(row["metric_value"]),
-        "threshold_value": float(row["threshold"]),
-        "status": row["status"],
-        "created_at": datetime.now().strftime(
-            "%Y-%m-%d %H:%M:%S"
-        )
-    }
+    return all_alerts
 
 
-def fetch_rule_rows(client, rule_id):
-
-    query = QUERY_BY_RULE[rule_id]
-
-    rows = client.query(query).result()
-
-    return [dict(row) for row in rows]
-
-
-def run_all_alerts(project_id=PROJECT_ID):
-
-    client = bigquery.Client(project=project_id)
-
-    alerts = []
-
-    for rule_id in ["R1", "R2", "R3"]:
-
-        rows = fetch_rule_rows(
-            client,
-            rule_id
-        )
-
-        for row in rows:
-            alerts.append(
-                build_alert_payload(row)
-            )
-
-    return alerts
-
-
-def save_alerts_to_bigquery(client, alerts):
-
+def save_alerts_to_bigquery(alerts: List[Dict[str, Any]], project_id: str) -> None:
+    """Insert triggered alerts into BigQuery offers_gold.alerts table."""
     if not alerts:
         return
 
-    errors = client.insert_rows_json(
-        ALERT_TABLE,
-        alerts
-    )
+    config = get_config()
+    table_id = f"{project_id}.{config.gcp.gold_dataset}.alerts"
+    client = bq_client.get_bigquery_client(project_id)
 
+    errors = client.insert_rows_json(table_id, alerts)
     if errors:
-        raise RuntimeError(
-            f"BigQuery insert failed: {errors}"
-        )
+        logger.error(f"BigQuery alert insertion failed: {errors}")
+        raise RuntimeError(f"BigQuery insert failed: {errors}")
 
-    print(
-        f"Inserted {len(alerts)} alerts into {ALERT_TABLE}"
-    )
+    logger.info(f"Successfully inserted {len(alerts)} alerts into `{table_id}`")
 
 
-def main():
+def main() -> None:
+    config = get_config()
 
     parser = argparse.ArgumentParser(
-        description="Generate merchant offer alerts"
+        description="Deterministic alert detection engine for merchant offer optimization."
     )
-
     parser.add_argument(
         "--project",
-        default=PROJECT_ID,
-        help="Google Cloud project id"
+        default=config.gcp.project_id,
+        help="Google Cloud project ID (default: from campaign.yaml/env)",
+    )
+    parser.add_argument(
+        "--rule",
+        choices=["R1", "R2", "R3"],
+        default=None,
+        help="Run a specific rule only (default: all)",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Print detected alerts to stdout without writing to BigQuery",
     )
 
     args = parser.parse_args()
 
-    alerts = run_all_alerts(
-        args.project
-    )
+    alerts = run_all_alerts(args.project, selected_rule=args.rule)
 
     if not alerts:
-        print("No alerts triggered.")
+        logger.info("No alerts triggered based on current Gold metrics.")
         return
 
-    client = bigquery.Client(
-        project=args.project
-    )
+    print(json.dumps(alerts, indent=2, default=str))
 
-    save_alerts_to_bigquery(
-        client,
-        alerts
-    )
-
-    print(
-        f"Successfully processed {len(alerts)} alerts."
-    )
+    if not args.dry_run:
+        save_alerts_to_bigquery(alerts, args.project)
+        logger.info(f"Alert detection run complete. Processed {len(alerts)} alerts.")
+    else:
+        logger.info(f"[DRY-RUN] Detected {len(alerts)} alerts (not saved to BigQuery).")
 
 
 if __name__ == "__main__":

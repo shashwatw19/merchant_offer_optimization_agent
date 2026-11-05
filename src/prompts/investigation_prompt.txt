@@ -1,0 +1,12 @@
+Investigate this merchant offer alert according to enterprise policy.
+
+ALERT DETAILS:
+{alert_json}
+
+INVESTIGATION MANDATE:
+1. Retrieve campaign terms and baseline performance.
+2. Retrieve merchant spend distribution and delivery metrics.
+3. Retrieve dated customer reviews and merchant operational feedback notes.
+4. Formulate verified facts and testable hypotheses.
+5. If proposing a spend threshold adjustment, validate it with validate_proposal and evaluate with simulate_campaign_change.
+6. Return a complete, valid JSON InvestigationReport matching the output contract.

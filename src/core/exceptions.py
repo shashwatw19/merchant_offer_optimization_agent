@@ -1,0 +1,37 @@
+"""Custom exception hierarchy for Merchant Offer Optimization Agent."""
+
+
+class OfferOptimizationError(Exception):
+    """Base exception for all offer optimization errors."""
+    pass
+
+
+class ConfigurationError(OfferOptimizationError):
+    """Raised when configuration is invalid or missing."""
+    pass
+
+
+class PolicyViolationError(OfferOptimizationError):
+    """Raised when a campaign proposal violates policy constraints."""
+    pass
+
+
+class DatabaseError(OfferOptimizationError):
+    """Raised when BigQuery interaction fails."""
+    def __init__(self, message: str, retryable: bool = False, query: str = None):
+        super().__init__(message)
+        self.retryable = retryable
+        self.query = query
+
+
+class ToolExecutionError(OfferOptimizationError):
+    """Raised when an agent tool fails to execute."""
+    def __init__(self, tool_name: str, message: str, retryable: bool = False):
+        super().__init__(f"Tool '{tool_name}' failed: {message}")
+        self.tool_name = tool_name
+        self.retryable = retryable
+
+
+class ReportValidationError(OfferOptimizationError):
+    """Raised when agent output cannot be parsed into a valid InvestigationReport."""
+    pass

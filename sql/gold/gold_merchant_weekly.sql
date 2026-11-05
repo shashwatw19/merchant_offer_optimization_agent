@@ -46,7 +46,7 @@ WITH merchant_txn AS (
         ) AS avg_txn_amount,
 
         ROUND(
-            APPROX_QUANTILES(  --- APPROX_QUANTILES ignore the nulls
+            APPROX_QUANTILES(
                 CASE
                     WHEN UPPER(t.txn_status) = 'POSTED'
                     THEN t.amount
@@ -80,8 +80,8 @@ SELECT
     mt.merchant_name,
     mt.merchant_category,
     mt.merchant_city,
-    mt.period_start
-    mt.period_end
+    mt.period_start,
+    mt.period_end,
    
     COALESCE(mt.posted_txn_count, 0) AS posted_txn_count,
 
@@ -95,7 +95,7 @@ SELECT
 
     mt.batch_id,
  
-    DATETIME(CURRENT_TIMESTAMP(), 'Asia/Kolkata')AS ingestion_time,
+    DATETIME(CURRENT_TIMESTAMP(), 'Asia/Kolkata') AS ingestion_time,
 
     CASE
         WHEN mt.merchant_name IS NULL
