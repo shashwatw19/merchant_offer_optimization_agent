@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 
 class AgentMetaConfig(BaseModel):
     name: str = "merchant_offer_optimization_agent"
-    model: str = "gemini-2.5-flash"
+    model: str = "gemini-3.5-flash"
 
 
 class PolicyConfig(BaseModel):
