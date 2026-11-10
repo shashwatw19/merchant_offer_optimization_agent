@@ -18,10 +18,19 @@ class PolicyViolationError(OfferOptimizationError):
 
 class DatabaseError(OfferOptimizationError):
     """Raised when BigQuery interaction fails."""
-    def __init__(self, message: str, retryable: bool = False, query: str = None):
+    def __init__(
+        self,
+        message: str,
+        retryable: bool = False,
+        query: str = None,
+        attempts_made: int = 1,
+        is_transient: bool = False,
+    ):
         super().__init__(message)
         self.retryable = retryable
         self.query = query
+        self.attempts_made = attempts_made
+        self.is_transient = is_transient
 
 
 class ToolExecutionError(OfferOptimizationError):

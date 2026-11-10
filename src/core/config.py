@@ -1,83 +1,32 @@
 import os
 from pathlib import Path
-from typing import List, Optional
+from typing import Optional
 import yaml
-from pydantic import BaseModel, Field
 
 
-class AgentMetaConfig(BaseModel):
-    name: str = "merchant_offer_optimization_agent"
-    model: str = "gemini-3.5-flash"
+class ConfigDict(dict):
+    """Simple dictionary allowing direct attribute access (e.g. config.policy.allowed_thresholds)."""
+
+    def __getattr__(self, key):
+        try:
+            val = self[key]
+            if isinstance(val, dict) and not isinstance(val, ConfigDict):
+                val = ConfigDict(val)
+                self[key] = val
+            return val
+        except KeyError:
+            raise AttributeError(f"Attribute '{key}' not found in campaign.yaml")
+
+    def __setattr__(self, key, value):
+        self[key] = value
 
 
-class PolicyConfig(BaseModel):
-    allowed_thresholds: List[float] = Field(default_factory=lambda: [1000.0, 1500.0, 2000.0])
-    cashback_percent: float = 10.0
-    cashback_cap: float = 200.0
-    budget_ceiling: float = 40000.0
+AppConfig = ConfigDict
+_CONFIG_INSTANCE: Optional[ConfigDict] = None
 
 
-class InvestigationConfig(BaseModel):
-    max_tool_calls: int = 10
-    evidence_required: bool = True
-    citations_required: bool = True
-
-
-class GuardrailsConfig(BaseModel):
-    read_only_tools: bool = True
-    no_campaign_updates: bool = True
-    no_customer_contact: bool = True
-    no_future_uplift_predictions: bool = True
-
-
-class ReportingConfig(BaseModel):
-    include_findings: bool = True
-    include_hypotheses: bool = True
-    include_evidence_ids: bool = True
-    include_recommendations: bool = True
-    human_approval_required: bool = True
-
-
-class GCPConfig(BaseModel):
-    project_id: str = "prj-imp-act-campaign"
-    location: str = "asia-south1"
-    bronze_dataset: str = "offers_bronze"
-    silver_dataset: str = "offers_silver"
-    gold_dataset: str = "offers_gold"
-    alerts_table: str = "offers_gold.alerts"
-
-
-class AppConfig(BaseModel):
-    agent: AgentMetaConfig = Field(default_factory=AgentMetaConfig)
-    objective: str = (
-        "Investigate campaign alerts and provide evidence-backed "
-        "recommendations without modifying campaigns."
-    )
-    tools: List[str] = Field(
-        default_factory=lambda: [
-            "get_campaign_performance",
-            "get_campaign_terms",
-            "get_spend_distribution",
-            "get_customer_reviews",
-            "get_merchant_feedback",
-            "get_delivery_metrics",
-            "get_comparable_campaigns",
-            "validate_proposal",
-            "simulate_campaign_change",
-        ]
-    )
-    policy: PolicyConfig = Field(default_factory=PolicyConfig)
-    investigation: InvestigationConfig = Field(default_factory=InvestigationConfig)
-    guardrails: GuardrailsConfig = Field(default_factory=GuardrailsConfig)
-    reporting: ReportingConfig = Field(default_factory=ReportingConfig)
-    gcp: GCPConfig = Field(default_factory=GCPConfig)
-
-
-_CONFIG_INSTANCE: Optional[AppConfig] = None
-
-
-def find_campaign_yaml() -> Optional[Path]:
-    """Search common candidate paths for campaign.yaml."""
+def find_campaign_yaml() -> Path:
+    """Find campaign.yaml in workspace root."""
     candidates = [
         Path.cwd() / "campaign.yaml",
         Path(__file__).resolve().parent.parent.parent / "campaign.yaml",
@@ -86,35 +35,41 @@ def find_campaign_yaml() -> Optional[Path]:
     for candidate in candidates:
         if candidate.is_file():
             return candidate
-    return None
+    return Path("campaign.yaml")
 
 
-def load_config(config_path: Optional[str] = None) -> AppConfig:
-    """Load configuration from YAML and apply environment overrides."""
+def load_config(config_path: Optional[str] = None) -> ConfigDict:
+    """Load campaign.yaml directly as a simple attribute-accessible dictionary."""
     global _CONFIG_INSTANCE
-    
-    data = {}
     path = Path(config_path) if config_path else find_campaign_yaml()
-    if path and path.is_file():
-        with open(path, "r", encoding="utf-8") as f:
-            data = yaml.safe_load(f) or {}
 
-    config = AppConfig(**data)
+    with open(path, "r", encoding="utf-8") as f:
+        data = yaml.safe_load(f) or {}
 
-    # Environment variable overrides
-    if "GCP_PROJECT" in os.environ:
-        config.gcp.project_id = os.environ["GCP_PROJECT"]
-    if "BQ_LOCATION" in os.environ:
-        config.gcp.location = os.environ["BQ_LOCATION"]
-    if "GEMINI_MODEL" in os.environ:
-        config.agent.model = os.environ["GEMINI_MODEL"]
+    config = ConfigDict(data)
+
+    # Optional environment variable overrides
+    if "GCP_PROJECT" in os.environ and "gcp" in config:
+        config.gcp["project_id"] = os.environ["GCP_PROJECT"]
+    if "BQ_LOCATION" in os.environ and "gcp" in config:
+        config.gcp["location"] = os.environ["BQ_LOCATION"]
+    if "GEMINI_MODEL" in os.environ and "agent" in config:
+        config.agent["model"] = os.environ["GEMINI_MODEL"]
+    if "MAX_RETRY_COUNT" in os.environ:
+        count = int(os.environ["MAX_RETRY_COUNT"])
+        if "resilience" in config:
+            config.resilience["max_retry_count"] = count
+            config.resilience["retry_count"] = count
+        if "investigation" in config:
+            config.investigation["max_retry_count"] = count
+            config.investigation["retry_count"] = count
 
     _CONFIG_INSTANCE = config
     return config
 
 
-def get_config() -> AppConfig:
-    """Return the cached AppConfig instance, loading default if needed."""
+def get_config() -> ConfigDict:
+    """Return the cached YAML configuration."""
     global _CONFIG_INSTANCE
     if _CONFIG_INSTANCE is None:
         _CONFIG_INSTANCE = load_config()

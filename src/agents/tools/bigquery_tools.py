@@ -3,6 +3,7 @@ from google.cloud import bigquery
 import core.bigquery_client as bq_client
 from core.config import get_config
 from core.logging import logger
+from core.resilience import format_tool_error
 from domain.simulator import HistoricalReplaySimulator
 
 _SIMULATOR = HistoricalReplaySimulator()
@@ -19,7 +20,7 @@ def get_campaign_terms(campaign_id: str) -> Dict[str, Any]:
         campaign_id: The unique campaign identifier (e.g., 'CMP131').
         
     Returns:
-        A dictionary containing 'campaign_id' and 'terms' record, or an error.
+        A dictionary containing 'campaign_id' and 'terms' record, or diagnostic error details.
     """
     config = get_config()
     project = config.gcp.project_id
@@ -51,12 +52,14 @@ def get_campaign_terms(campaign_id: str) -> Dict[str, Any]:
         }
     except Exception as exc:
         logger.error(f"Error in get_campaign_terms('{campaign_id}'): {exc}")
-        return {
-            "success": False,
-            "error": f"Failed retrieving campaign terms: {str(exc)}",
-            "campaign_id": campaign_id,
-            "terms": None,
-        }
+        failure = format_tool_error(
+            tool_name="get_campaign_terms",
+            exc=exc,
+            error_prefix=f"Failed retrieving campaign terms for '{campaign_id}'",
+        )
+        failure["campaign_id"] = campaign_id
+        failure["terms"] = None
+        return failure
 
 
 def get_campaign_performance(campaign_id: str) -> Dict[str, Any]:
@@ -100,12 +103,14 @@ def get_campaign_performance(campaign_id: str) -> Dict[str, Any]:
         }
     except Exception as exc:
         logger.error(f"Error in get_campaign_performance('{campaign_id}'): {exc}")
-        return {
-            "success": False,
-            "error": f"Failed retrieving campaign performance: {str(exc)}",
-            "campaign_id": campaign_id,
-            "performance": None,
-        }
+        failure = format_tool_error(
+            tool_name="get_campaign_performance",
+            exc=exc,
+            error_prefix=f"Failed retrieving campaign performance for '{campaign_id}'",
+        )
+        failure["campaign_id"] = campaign_id
+        failure["performance"] = None
+        return failure
 
 
 def get_spend_distribution(merchant_id: str) -> Dict[str, Any]:
@@ -149,12 +154,14 @@ def get_spend_distribution(merchant_id: str) -> Dict[str, Any]:
         }
     except Exception as exc:
         logger.error(f"Error in get_spend_distribution('{merchant_id}'): {exc}")
-        return {
-            "success": False,
-            "error": f"Failed retrieving spend distribution: {str(exc)}",
-            "merchant_id": merchant_id,
-            "spend_profile": None,
-        }
+        failure = format_tool_error(
+            tool_name="get_spend_distribution",
+            exc=exc,
+            error_prefix=f"Failed retrieving spend distribution for '{merchant_id}'",
+        )
+        failure["merchant_id"] = merchant_id
+        failure["spend_profile"] = None
+        return failure
 
 
 def get_customer_reviews(merchant_id: str, limit: int = 20) -> Dict[str, Any]:
@@ -219,12 +226,14 @@ def get_customer_reviews(merchant_id: str, limit: int = 20) -> Dict[str, Any]:
                 "evidence_ref": f"bq:{project}.{bronze}.customer_reviews_raw:{merchant_id}",
             }
         except Exception as inner_exc:
-            return {
-                "success": False,
-                "error": f"Failed retrieving customer reviews: {str(inner_exc)}",
-                "merchant_id": merchant_id,
-                "reviews": [],
-            }
+            failure = format_tool_error(
+                tool_name="get_customer_reviews",
+                exc=inner_exc,
+                error_prefix=f"Failed retrieving customer reviews for '{merchant_id}'",
+            )
+            failure["merchant_id"] = merchant_id
+            failure["reviews"] = []
+            return failure
 
 
 def get_merchant_feedback(merchant_id: str, limit: int = 20) -> Dict[str, Any]:
@@ -289,12 +298,14 @@ def get_merchant_feedback(merchant_id: str, limit: int = 20) -> Dict[str, Any]:
                 "evidence_ref": f"bq:{project}.{bronze}.merchant_feedback_raw:{merchant_id}",
             }
         except Exception as inner_exc:
-            return {
-                "success": False,
-                "error": f"Failed retrieving merchant feedback: {str(inner_exc)}",
-                "merchant_id": merchant_id,
-                "feedback": [],
-            }
+            failure = format_tool_error(
+                tool_name="get_merchant_feedback",
+                exc=inner_exc,
+                error_prefix=f"Failed retrieving merchant feedback for '{merchant_id}'",
+            )
+            failure["merchant_id"] = merchant_id
+            failure["feedback"] = []
+            return failure
 
 
 def get_delivery_metrics(campaign_id: str) -> Dict[str, Any]:
@@ -352,12 +363,14 @@ def get_delivery_metrics(campaign_id: str) -> Dict[str, Any]:
         }
     except Exception as exc:
         logger.error(f"Error in get_delivery_metrics('{campaign_id}'): {exc}")
-        return {
-            "success": False,
-            "error": f"Failed retrieving delivery metrics: {str(exc)}",
-            "campaign_id": campaign_id,
-            "delivery_metrics": None,
-        }
+        failure = format_tool_error(
+            tool_name="get_delivery_metrics",
+            exc=exc,
+            error_prefix=f"Failed retrieving delivery metrics for '{campaign_id}'",
+        )
+        failure["campaign_id"] = campaign_id
+        failure["delivery_metrics"] = None
+        return failure
 
 
 def get_comparable_campaigns(campaign_id: str, limit: int = 5) -> Dict[str, Any]:
@@ -417,12 +430,14 @@ def get_comparable_campaigns(campaign_id: str, limit: int = 5) -> Dict[str, Any]
         }
     except Exception as exc:
         logger.error(f"Error in get_comparable_campaigns('{campaign_id}'): {exc}")
-        return {
-            "success": False,
-            "error": f"Failed retrieving comparable campaigns: {str(exc)}",
-            "campaign_id": campaign_id,
-            "peer_campaigns": [],
-        }
+        failure = format_tool_error(
+            tool_name="get_comparable_campaigns",
+            exc=exc,
+            error_prefix=f"Failed retrieving comparable campaigns for '{campaign_id}'",
+        )
+        failure["campaign_id"] = campaign_id
+        failure["peer_campaigns"] = []
+        return failure
 
 
 def simulate_campaign_change(campaign_id: str, min_spend: float) -> Dict[str, Any]:
@@ -438,4 +453,14 @@ def simulate_campaign_change(campaign_id: str, min_spend: float) -> Dict[str, An
     Returns:
         A dictionary with simulation deltas, customer counts, cashback liabilities, and budget check.
     """
-    return _SIMULATOR.simulate(campaign_id=campaign_id, proposed_min_spend=min_spend)
+    try:
+        return _SIMULATOR.simulate(campaign_id=campaign_id, proposed_min_spend=min_spend)
+    except Exception as exc:
+        logger.error(f"Error in simulate_campaign_change('{campaign_id}', min_spend={min_spend}): {exc}")
+        failure = format_tool_error(
+            tool_name="simulate_campaign_change",
+            exc=exc,
+            error_prefix=f"Failed simulating campaign change for '{campaign_id}'",
+        )
+        failure["campaign_id"] = campaign_id
+        return failure
