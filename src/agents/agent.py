@@ -2,6 +2,7 @@ import asyncio
 import json
 import re
 import time
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 from google.adk.agents import LlmAgent
 from google.adk.runners import InMemoryRunner
@@ -101,11 +102,15 @@ def extract_json_report(text: str) -> Optional[Dict[str, Any]]:
         return None
 
 
-async def process_alert_async(alert: Dict[str, Any]) -> Dict[str, Any]:
+async def process_alert_async(
+    alert: Dict[str, Any],
+    execution_id: Optional[str] = None,
+) -> Dict[str, Any]:
     """Execute end-to-end investigation workflow for an alert using Google ADK."""
     start_time = time.time()
     alert_id = alert.get("alert_id", "A_UNKNOWN")
     campaign_id = alert.get("campaign_id", "CMP_UNKNOWN")
+    exec_id = execution_id or f"exec_{alert_id}_{int(start_time)}"
     session_id = f"session_alert_{alert_id}"
 
     session = await get_or_create_session(USER_ID, session_id)
@@ -147,11 +152,15 @@ async def process_alert_async(alert: Dict[str, Any]) -> Dict[str, Any]:
         duration_ms = round((time.time() - start_time) * 1000, 2)
         parsed_report = extract_json_report(final_text)
 
+        now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+
         # Fallback if LLM output could not be strictly parsed as JSON
         if not parsed_report:
             parsed_report = {
                 "alert_id": alert_id,
                 "campaign_id": campaign_id,
+                "execution_id": exec_id,
+                "generated_at": now_str,
                 "status": "COMPLETE",
                 "summary": final_text[:1000],
                 "findings": [
@@ -166,6 +175,11 @@ async def process_alert_async(alert: Dict[str, Any]) -> Dict[str, Any]:
                 "future_incremental_spend": None,
                 "human_approval_required": True,
             }
+        else:
+            if not parsed_report.get("execution_id"):
+                parsed_report["execution_id"] = exec_id
+            if not parsed_report.get("generated_at"):
+                parsed_report["generated_at"] = now_str
 
         tracer.write_trace(
             alert_id=alert_id,
@@ -174,10 +188,12 @@ async def process_alert_async(alert: Dict[str, Any]) -> Dict[str, Any]:
             tool_calls=tool_calls_trace,
             report=parsed_report,
             duration_ms=duration_ms,
+            execution_id=exec_id,
         )
 
         return {
             "success": True,
+            "execution_id": exec_id,
             "alert_id": alert_id,
             "campaign_id": campaign_id,
             "report": parsed_report,
@@ -197,9 +213,11 @@ async def process_alert_async(alert: Dict[str, Any]) -> Dict[str, Any]:
             report=None,
             duration_ms=duration_ms,
             error=str(exc),
+            execution_id=exec_id,
         )
         return {
             "success": False,
+            "execution_id": exec_id,
             "alert_id": alert_id,
             "campaign_id": campaign_id,
             "error": str(exc),

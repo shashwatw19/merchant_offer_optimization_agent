@@ -55,6 +55,12 @@ def load_config(config_path: Optional[str] = None) -> ConfigDict:
         config.gcp["location"] = os.environ["BQ_LOCATION"]
     if "GEMINI_MODEL" in os.environ and "agent" in config:
         config.agent["model"] = os.environ["GEMINI_MODEL"]
+    if "GCS_BUCKET" in os.environ and "storage" in config:
+        config.storage["bucket_name"] = os.environ["GCS_BUCKET"]
+    elif "GCS_REPORTS_BUCKET" in os.environ and "storage" in config:
+        config.storage["bucket_name"] = os.environ["GCS_REPORTS_BUCKET"]
+    if "GCS_STORAGE_ENABLED" in os.environ and "storage" in config:
+        config.storage["enabled"] = os.environ["GCS_STORAGE_ENABLED"].lower() in ("true", "1", "yes")
     if "MAX_RETRY_COUNT" in os.environ:
         count = int(os.environ["MAX_RETRY_COUNT"])
         if "resilience" in config:

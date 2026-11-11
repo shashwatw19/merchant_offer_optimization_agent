@@ -62,3 +62,12 @@ reporting:
   include_evidence_ids: true
   include_recommendations: true
   human_approval_required: true
+
+storage:
+  enabled: true
+  provider: gcs
+  bucket_name: prj-imp-act-campaign-data
+  reports_prefix: reports
+  local_fallback_dir: output
+  timeout_sec: 15.0
+  retry_count: 3

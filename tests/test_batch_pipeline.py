@@ -49,6 +49,19 @@ async def test_process_alert_batch_success(tmp_path, monkeypatch):
         assert data["alert_id"] == "A1001"
         assert data["proposal"]["min_spend"] == 1500
 
+    # Markdown report file also created
+    md_file = tmp_path / "report_A1001.md"
+    assert md_file.exists()
+    with open(md_file, "r", encoding="utf-8") as f:
+        md_text = f.read()
+        assert "A1001" in md_text
+        assert "CMP131" in md_text
+        assert "# Merchant Offer Investigation Report" in md_text
+
+    # Result contains storage URIs
+    assert "gcs_json_uri" in results[0]
+    assert "gcs_markdown_uri" in results[0]
+
 
 @pytest.mark.asyncio
 async def test_process_alert_batch_error_handling(tmp_path, monkeypatch):

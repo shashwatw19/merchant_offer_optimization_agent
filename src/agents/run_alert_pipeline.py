@@ -15,8 +15,10 @@ from agents.tools.alert_store import (
     fetch_pending_alerts,
     update_alert_status,
 )
+from agents.tools.report_tools import convert_json_report_to_markdown
 from core.config import get_config
 from core.logging import logger
+from services.gcs_storage import get_storage_service
 
 
 async def process_alert_batch(
@@ -40,14 +42,36 @@ async def process_alert_batch(
 
         if result["success"]:
             report = result["report"]
+            exec_id = result.get("execution_id") or report.get("execution_id") or f"exec_{alert_id}"
             summary = report.get("summary") or "Investigation completed successfully."
-            logger.info(f"Alert {alert_id} investigation completed successfully.")
+            logger.info(f"Alert {alert_id} investigation completed successfully (Exec: {exec_id}).")
 
-            # Save report JSON artifact
+            # 1. Save local JSON report artifact (preserves backward compatibility)
             report_file = output_dir / f"report_{alert_id}.json"
             with open(report_file, "w", encoding="utf-8") as f:
                 json.dump(report, f, indent=2, default=str)
-            logger.info(f"Saved investigation report to {report_file}")
+            logger.info(f"Saved investigation report JSON locally to {report_file}")
+
+            # 2. Upload canonical JSON report to GCS
+            storage_service = get_storage_service()
+            gcs_json_res = storage_service.upload_json(
+                report_data=report,
+                execution_id=exec_id,
+                alert_id=alert_id,
+                campaign_id=campaign_id,
+            )
+            result["gcs_json_uri"] = gcs_json_res.uri
+
+            # 3. Generate Markdown report and upload to GCS (via convert_json_report_to_markdown tool)
+            md_file = output_dir / f"report_{alert_id}.md"
+            md_res = convert_json_report_to_markdown(
+                report_data=report,
+                execution_id=exec_id,
+                output_path=str(md_file),
+                save_to_gcs=True,
+            )
+            result["gcs_markdown_uri"] = md_res.get("gcs_uri")
+            result["markdown_content"] = md_res.get("markdown_content")
 
             if not dry_run:
                 update_alert_status(alert_id, "RESOLVED", summary=summary)

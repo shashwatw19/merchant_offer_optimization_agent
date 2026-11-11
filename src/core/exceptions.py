@@ -44,3 +44,23 @@ class ToolExecutionError(OfferOptimizationError):
 class ReportValidationError(OfferOptimizationError):
     """Raised when agent output cannot be parsed into a valid InvestigationReport."""
     pass
+
+
+class StorageError(OfferOptimizationError):
+    """Raised when cloud or local storage operations fail."""
+    def __init__(
+        self,
+        message: str,
+        retryable: bool = False,
+        is_transient: bool = False,
+        attempts_made: int = 1,
+    ):
+        super().__init__(message)
+        self.retryable = retryable
+        self.is_transient = is_transient
+        self.attempts_made = attempts_made
+
+
+class ReportRenderingError(OfferOptimizationError):
+    """Raised when report rendering or transformation fails."""
+    pass

@@ -57,6 +57,8 @@ class ReplaySimulationResult(BaseModel):
 class InvestigationReport(BaseModel):
     alert_id: str
     campaign_id: str
+    execution_id: Optional[str] = None
+    generated_at: Optional[str] = None
     status: Literal["COMPLETE", "INCONCLUSIVE", "FAILED"] = "COMPLETE"
     findings: List[Finding] = Field(default_factory=list)
     hypotheses: List[Hypothesis] = Field(default_factory=list)
