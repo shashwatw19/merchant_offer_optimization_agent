@@ -74,12 +74,12 @@ def update_alert_status(
     gold = config.gcp.gold_dataset
 
     sql = f"""
-        UPDATE `{project}.{gold}.alerts`
-        SET status = @status,
-            resolved_at = CURRENT_TIMESTAMP(),
-            investigation_summary = @summary
-        WHERE alert_id = @alert_id
-    """
+    UPDATE `{project}.{gold}.alerts`
+    SET status = @status,
+        resolved_at = CAST(CURRENT_TIMESTAMP() AS STRING),
+        investigation_summary = @summary
+    WHERE alert_id = @alert_id
+"""
     params = [
         bigquery.ScalarQueryParameter("status", "STRING", status),
         bigquery.ScalarQueryParameter("alert_id", "STRING", alert_id),

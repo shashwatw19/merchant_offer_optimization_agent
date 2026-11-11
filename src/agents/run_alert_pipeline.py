@@ -64,7 +64,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description="Batch pipeline to investigate pending campaign alerts."
     )
-    parser.add_argument("--limit", type=int, default=5, help="Maximum number of alerts to process.")
+    parser.add_argument("--limit", type=int, default=2, help="Maximum number of alerts to process.")
     parser.add_argument("--alert-id", type=str, default=None, help="Specific alert ID to investigate.")
     parser.add_argument("--output-dir", type=str, default="output", help="Directory to save report JSON files.")
     parser.add_argument("--dry-run", action="store_true", help="Run without updating BigQuery alert statuses.")
