@@ -1,6 +1,6 @@
 import pytest
 from pydantic import ValidationError
-from domain.contracts import InvestigationReport, Finding, Hypothesis, Proposal
+from domain.contracts import AlertPayload, InvestigationReport, Finding, Hypothesis, Proposal
 
 
 def test_investigation_report_valid_contract():
@@ -26,6 +26,21 @@ def test_investigation_report_valid_contract():
     assert dumped["proposal"]["min_spend"] == 1500
     assert dumped["future_incremental_spend"] is None
     assert dumped["human_approval_required"] is True
+    assert "IST" in dumped["generated_at"]
+
+
+def test_alert_payload_created_at_in_ist():
+    payload = AlertPayload(
+        alert_id="A1001",
+        campaign_id="CMP131",
+        rule_id="R1",
+        metric_name="redemption_rate",
+        metric_value=4.0,
+        threshold_value=5.0,
+    )
+    dumped = payload.model_dump()
+    assert "created_at" in dumped
+    assert "IST" in dumped["created_at"]
 
 
 def test_investigation_report_requires_mandatory_fields():

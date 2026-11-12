@@ -16,6 +16,7 @@ from core.config import get_config
 from core.exceptions import StorageError
 from core.logging import logger
 from core.resilience import TRANSIENT_EXCEPTIONS, classify_error
+from core.time_utils import now_ist_str
 
 _STORAGE_CLIENT: Optional[storage.Client] = None
 _STORAGE_SERVICE_INSTANCE: Optional["GCSStorageService"] = None
@@ -256,7 +257,7 @@ class GCSStorageService:
         metadata = {
             "execution_id": execution_id,
             "report_type": "INVESTIGATION_JSON",
-            "created_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": now_ist_str(),
         }
         if alert_id:
             metadata["alert_id"] = str(alert_id)
@@ -290,7 +291,7 @@ class GCSStorageService:
         metadata = {
             "execution_id": execution_id,
             "report_type": "INVESTIGATION_MARKDOWN",
-            "created_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": now_ist_str(),
         }
         if alert_id:
             metadata["alert_id"] = str(alert_id)

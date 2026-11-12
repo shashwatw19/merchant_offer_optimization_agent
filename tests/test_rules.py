@@ -52,3 +52,5 @@ def test_parse_alert_row():
     assert alert["threshold_value"] == 5.0
     assert alert["status"] == "OPEN"
     assert alert["alert_id"].startswith("A")
+    assert "created_at" in alert
+    assert "IST" in alert["created_at"]

@@ -1,7 +1,8 @@
 import json
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any, Dict, List, Optional, Union
 from core.exceptions import ReportRenderingError
+from core.time_utils import now_ist_str
 from domain.contracts import InvestigationReport
 
 
@@ -104,7 +105,7 @@ class ReportRendererService:
         campaign_id = str(data.get("campaign_id") or "UNKNOWN")
         status = str(data.get("status") or "COMPLETE")
         exec_id = execution_id or str(data.get("execution_id") or f"exec_{alert_id}")
-        ts = generated_at or data.get("generated_at") or datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+        ts = generated_at or data.get("generated_at") or now_ist_str()
 
         summary = data.get("summary") or "Investigation completed. Review findings and recommendations below."
         findings: List[Dict[str, Any]] = data.get("findings") or []

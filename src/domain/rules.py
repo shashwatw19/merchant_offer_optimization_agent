@@ -1,6 +1,7 @@
 import hashlib
 from typing import Any, Dict
 from core.config import get_config
+from core.time_utils import now_ist_str
 
 
 def generate_alert_id(rule_id: str, campaign_id: str) -> str:
@@ -184,4 +185,5 @@ def parse_alert_row(row: Dict[str, Any]) -> Dict[str, Any]:
         "metric_value": float(row["metric_value"]),
         "threshold_value": float(row["threshold"]),
         "status": row.get("status", "OPEN"),
+        "created_at": str(row.get("created_at") or now_ist_str()),
     }

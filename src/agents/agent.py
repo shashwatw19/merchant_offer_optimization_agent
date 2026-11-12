@@ -2,11 +2,12 @@ import asyncio
 import json
 import re
 import time
-from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 from google.adk.agents import LlmAgent
 from google.adk.runners import InMemoryRunner
 from google.genai import types
+
+from core.time_utils import now_ist_str
 
 from agents.tools.bigquery_tools import (
     get_campaign_terms,
@@ -152,7 +153,7 @@ async def process_alert_async(
         duration_ms = round((time.time() - start_time) * 1000, 2)
         parsed_report = extract_json_report(final_text)
 
-        now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+        now_str = now_ist_str()
 
         # Fallback if LLM output could not be strictly parsed as JSON
         if not parsed_report:

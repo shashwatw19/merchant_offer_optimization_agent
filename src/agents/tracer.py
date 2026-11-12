@@ -1,8 +1,8 @@
 import json
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 from core.logging import logger
+from core.time_utils import now_ist, now_ist_str
 
 
 class ExecutionTracer:
@@ -24,13 +24,13 @@ class ExecutionTracer:
         execution_id: Optional[str] = None,
     ) -> Path:
         """Append an execution trace record to the daily JSONL trace log."""
-        today = datetime.now(timezone.utc).strftime("%Y%m%d")
+        today = now_ist().strftime("%Y%m%d")
         trace_file = self.trace_dir / f"trace_{today}.jsonl"
 
         eff_exec_id = execution_id or (report.get("execution_id") if isinstance(report, dict) else None) or f"exec_{alert_id}"
 
         record = {
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": now_ist_str(),
             "execution_id": eff_exec_id,
             "alert_id": alert_id,
             "campaign_id": campaign_id,

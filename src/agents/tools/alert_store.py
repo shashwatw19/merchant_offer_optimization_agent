@@ -3,6 +3,7 @@ from google.cloud import bigquery
 import core.bigquery_client as bq_client
 from core.config import get_config
 from core.logging import logger
+from core.time_utils import now_ist_str
 
 
 def ensure_alert_table() -> None:
@@ -73,10 +74,11 @@ def update_alert_status(
     project = config.gcp.project_id
     gold = config.gcp.gold_dataset
 
+    now_ist = now_ist_str()
     sql = f"""
     UPDATE `{project}.{gold}.alerts`
     SET status = @status,
-        resolved_at = CAST(CURRENT_TIMESTAMP() AS STRING),
+        resolved_at = @resolved_at,
         investigation_summary = @summary
     WHERE alert_id = @alert_id
 """
@@ -84,11 +86,18 @@ def update_alert_status(
         bigquery.ScalarQueryParameter("status", "STRING", status),
         bigquery.ScalarQueryParameter("alert_id", "STRING", alert_id),
         bigquery.ScalarQueryParameter("summary", "STRING", summary or ""),
+        bigquery.ScalarQueryParameter("resolved_at", "STRING", now_ist),
     ]
     try:
         bq_client.execute_query(sql, parameters=params)
         logger.info(f"Updated alert {alert_id} status -> {status}")
         return True
     except Exception as exc:
-        logger.error(f"Failed to update alert {alert_id} status: {exc}")
+        if "streaming buffer" in str(exc).lower():
+            logger.warning(
+                f"Alert {alert_id} is temporarily in BigQuery's streaming buffer and cannot be updated yet. "
+                f"Status update ({status}) will be reflected once BigQuery flushes the buffer to persistent storage."
+            )
+        else:
+            logger.error(f"Failed to update alert {alert_id} status: {exc}")
         return False

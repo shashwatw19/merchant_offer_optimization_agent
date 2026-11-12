@@ -18,6 +18,7 @@ from agents.tools.alert_store import (
 from agents.tools.report_tools import convert_json_report_to_markdown
 from core.config import get_config
 from core.logging import logger
+from core.time_utils import now_ist_str
 from services.gcs_storage import get_storage_service
 
 
@@ -112,6 +113,7 @@ def main() -> None:
                 "metric_value": 0.0,
                 "threshold_value": 5.0,
                 "status": "OPEN",
+                "created_at": now_ist_str(),
             }
         ]
     else:

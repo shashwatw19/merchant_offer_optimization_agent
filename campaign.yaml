@@ -34,6 +34,7 @@ investigation:
   max_retry_count: 2
   evidence_required: true
   citations_required: true
+  alert_cooldown_minutes: 2.0
 
 resilience:
   retry_count: 2

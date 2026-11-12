@@ -1,6 +1,8 @@
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any, Dict, List, Literal, Optional
 from pydantic import BaseModel, Field
+
+from core.time_utils import now_ist_str
 
 
 class AlertPayload(BaseModel):
@@ -12,9 +14,7 @@ class AlertPayload(BaseModel):
     metric_value: float
     threshold_value: float
     status: Literal["OPEN", "PROCESSING", "RESOLVED", "ERROR"] = "OPEN"
-    created_at: str = Field(
-        default_factory=lambda: datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
-    )
+    created_at: str = Field(default_factory=now_ist_str)
 
 
 class Finding(BaseModel):
@@ -58,7 +58,7 @@ class InvestigationReport(BaseModel):
     alert_id: str
     campaign_id: str
     execution_id: Optional[str] = None
-    generated_at: Optional[str] = None
+    generated_at: Optional[str] = Field(default_factory=now_ist_str)
     status: Literal["COMPLETE", "INCONCLUSIVE", "FAILED"] = "COMPLETE"
     findings: List[Finding] = Field(default_factory=list)
     hypotheses: List[Hypothesis] = Field(default_factory=list)
