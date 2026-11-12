@@ -26,7 +26,8 @@ def test_investigation_report_valid_contract():
     assert dumped["proposal"]["min_spend"] == 1500
     assert dumped["future_incremental_spend"] is None
     assert dumped["human_approval_required"] is True
-    assert "IST" in dumped["generated_at"]
+    assert len(dumped["generated_at"]) == 19
+    assert dumped["generated_at"][10] == " "
 
 
 def test_alert_payload_created_at_in_ist():
@@ -40,7 +41,8 @@ def test_alert_payload_created_at_in_ist():
     )
     dumped = payload.model_dump()
     assert "created_at" in dumped
-    assert "IST" in dumped["created_at"]
+    assert len(dumped["created_at"]) == 19
+    assert dumped["created_at"][10] == " "
 
 
 def test_investigation_report_requires_mandatory_fields():

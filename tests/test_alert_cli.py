@@ -24,7 +24,8 @@ def test_alert_cli_dry_run_collects_alerts(monkeypatch):
     assert "R1" in rule_ids
     assert "R3" in rule_ids
     assert "created_at" in alerts[0]
-    assert "IST" in alerts[0]["created_at"]
+    assert len(alerts[0]["created_at"]) == 19
+    assert alerts[0]["created_at"][10] == " "
 
 
 def test_alert_cli_single_rule_filter(monkeypatch):
@@ -35,7 +36,8 @@ def test_alert_cli_single_rule_filter(monkeypatch):
     alerts = alert.run_all_alerts(project_id="test-proj", selected_rule="R1")
     assert len(alerts) == 1
     assert alerts[0]["rule_id"] == "R1"
-    assert "IST" in alerts[0]["created_at"]
+    assert len(alerts[0]["created_at"]) == 19
+    assert alerts[0]["created_at"][10] == " "
 
 
 def test_alert_cli_suppresses_already_active_alert(monkeypatch):

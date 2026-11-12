@@ -9,8 +9,8 @@ def now_ist() -> datetime:
     return datetime.now(IST)
 
 
-def now_ist_str(format_str: str = "%Y-%m-%d %H:%M:%S IST") -> str:
-    """Return formatted current time string in Indian Standard Time (IST)."""
+def now_ist_str(format_str: str = "%Y-%m-%d %H:%M:%S") -> str:
+    """Return formatted current time string in Indian Standard Time (IST) as 'YYYY-MM-DD HH:MM:SS'."""
     return now_ist().strftime(format_str)
 
 
