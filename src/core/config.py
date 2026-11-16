@@ -1,7 +1,18 @@
 import os
 from pathlib import Path
 from typing import Optional
+from dotenv import load_dotenv
 import yaml
+
+# Automatically load environment variables from .env if present
+load_dotenv()
+
+# Synchronize API keys so GEMINI_API_KEY and GOOGLE_API_KEY are interchangeable
+if os.environ.get("GEMINI_API_KEY") and not os.environ.get("GOOGLE_API_KEY"):
+    os.environ["GOOGLE_API_KEY"] = os.environ["GEMINI_API_KEY"]
+elif os.environ.get("GOOGLE_API_KEY") and not os.environ.get("GEMINI_API_KEY"):
+    os.environ["GEMINI_API_KEY"] = os.environ["GOOGLE_API_KEY"]
+
 
 
 class ConfigDict(dict):

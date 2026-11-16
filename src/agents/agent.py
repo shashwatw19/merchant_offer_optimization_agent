@@ -32,6 +32,18 @@ APP_NAME = "merchant_offer_app"
 USER_ID = "merchant_user"
 MODEL_NAME = config.agent.model
 
+TOOL_PURPOSES: Dict[str, str] = {
+    "get_campaign_terms": "Retrieve campaign discount structure, budget limits, minimum spend, and operational status.",
+    "get_campaign_performance": "Fetch historical impressions, clicks, spend, redemption rate, and customer reach.",
+    "get_spend_distribution": "Analyze customer transaction spend distribution relative to minimum spend thresholds.",
+    "get_customer_reviews": "Inspect customer sentiment and qualitative feedback regarding offer value and experience.",
+    "get_merchant_feedback": "Evaluate merchant satisfaction, margin constraints, and business preferences.",
+    "get_delivery_metrics": "Analyze order fulfillment latency, cancellation rates, and operational bottlenecks.",
+    "get_comparable_campaigns": "Benchmark campaign performance against similar merchant campaigns in the same category.",
+    "validate_proposal": "Verify proposed changes against business guardrails, allowed thresholds, and budget caps.",
+    "simulate_campaign_change": "Run deterministic historical replay simulation on past transactions to project financial impact.",
+}
+
 agent = LlmAgent(
     name=config.agent.name,
     model=MODEL_NAME,
@@ -107,7 +119,7 @@ async def process_alert_async(
     alert: Dict[str, Any],
     execution_id: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Execute end-to-end investigation workflow for an alert using Google ADK."""
+    """Execute end-to-end investigation workflow for an alert using Google ADK with full execution observability."""
     start_time = time.time()
     alert_id = alert.get("alert_id", "A_UNKNOWN")
     campaign_id = alert.get("campaign_id", "CMP_UNKNOWN")
@@ -120,6 +132,13 @@ async def process_alert_async(
     content = types.Content(role="user", parts=[types.Part(text=prompt)])
     final_text = ""
     tool_calls_trace: List[Dict[str, Any]] = []
+    execution_steps: List[Dict[str, Any]] = []
+    tool_start_times: Dict[str, float] = {}
+    step_counter = 0
+
+    prompt_tokens = 0
+    candidates_tokens = 0
+    total_tokens = 0
 
     try:
         async for event in runner.run_async(
@@ -127,24 +146,82 @@ async def process_alert_async(
             session_id=session.id,
             new_message=content,
         ):
+            # Capture observable token consumption from Google ADK response metadata
+            usage = getattr(event, "usage_metadata", None)
+            if usage:
+                p_tok = getattr(usage, "prompt_token_count", 0) or 0
+                c_tok = getattr(usage, "candidates_token_count", 0) or 0
+                t_tok = getattr(usage, "total_token_count", 0) or 0
+                if p_tok:
+                    prompt_tokens = p_tok
+                if c_tok:
+                    candidates_tokens = c_tok
+                if t_tok:
+                    total_tokens = t_tok
+
             if hasattr(event, "content") and event.content:
                 for part in event.content.parts:
                     if getattr(part, "function_call", None):
                         fc = part.function_call
+                        step_counter += 1
+                        tool_start_times[fc.name] = time.time()
+                        fc_args = {}
+                        try:
+                            if hasattr(fc, "args") and fc.args:
+                                fc_args = dict(fc.args)
+                        except Exception:
+                            fc_args = {"raw": str(getattr(fc, "args", ""))}
+
                         logger.info(f"Tool called: {fc.name}", extra={"alert_id": alert_id, "tool_name": fc.name})
                         tool_calls_trace.append({
+                            "step": step_counter,
                             "type": "call",
                             "name": fc.name,
-                            "args": fc.args,
+                            "args": fc_args,
                             "timestamp": time.time(),
                         })
                     elif getattr(part, "function_response", None):
                         fr = part.function_response
+                        st = tool_start_times.get(fr.name, time.time())
+                        step_duration_ms = round((time.time() - st) * 1000, 1)
+
+                        resp_val = getattr(fr, "response", {})
+                        resp_preview = str(resp_val)
+                        if len(resp_preview) > 500:
+                            resp_preview = resp_preview[:500] + "... [truncated]"
+
+                        is_success = True
+                        if isinstance(resp_val, dict):
+                            is_success = resp_val.get("success", True)
+
+                        # Match with preceding call
+                        matching_call = next(
+                            (c for c in reversed(tool_calls_trace) if c.get("name") == fr.name and c.get("type") == "call"),
+                            None,
+                        )
+                        args = matching_call.get("args") if matching_call else {}
+                        step_num = matching_call.get("step") if matching_call else step_counter
+
+                        purpose = TOOL_PURPOSES.get(fr.name, "Execute investigation tool")
+
+                        execution_steps.append({
+                            "step_number": step_num,
+                            "agent": config.agent.name,
+                            "tool_name": fr.name,
+                            "purpose": purpose,
+                            "inputs": args,
+                            "output_preview": resp_preview,
+                            "duration_ms": step_duration_ms,
+                            "status": "SUCCESS" if is_success else "ERROR",
+                        })
+
                         logger.info(f"Tool responded: {fr.name}", extra={"alert_id": alert_id, "tool_name": fr.name})
                         tool_calls_trace.append({
+                            "step": step_num,
                             "type": "response",
                             "name": fr.name,
-                            "response": str(fr.response)[:500],
+                            "response": resp_preview,
+                            "duration_ms": step_duration_ms,
                             "timestamp": time.time(),
                         })
                     elif getattr(part, "text", None):
@@ -152,6 +229,29 @@ async def process_alert_async(
 
         duration_ms = round((time.time() - start_time) * 1000, 2)
         parsed_report = extract_json_report(final_text)
+
+        # Fallback token estimation if provider did not surface usage_metadata
+        if total_tokens == 0:
+            prompt_tokens = max(1, len(prompt) // 4)
+            candidates_tokens = max(1, len(final_text) // 4)
+            total_tokens = prompt_tokens + candidates_tokens
+
+        execution_trace = {
+            "execution_id": exec_id,
+            "alert_id": alert_id,
+            "campaign_id": campaign_id,
+            "agent_name": config.agent.name,
+            "model": MODEL_NAME,
+            "total_duration_ms": duration_ms,
+            "tokens": {
+                "input_tokens": prompt_tokens,
+                "output_tokens": candidates_tokens,
+                "total_tokens": total_tokens or (prompt_tokens + candidates_tokens),
+            },
+            "tool_calls_count": len(execution_steps),
+            "steps": execution_steps,
+            "status": "SUCCESS" if parsed_report else "FAILED",
+        }
 
         now_str = now_ist_str()
 
@@ -182,6 +282,9 @@ async def process_alert_async(
             if not parsed_report.get("generated_at"):
                 parsed_report["generated_at"] = now_str
 
+        # Attach execution trace directly into parsed report
+        parsed_report["execution_trace"] = execution_trace
+
         tracer.write_trace(
             alert_id=alert_id,
             campaign_id=campaign_id,
@@ -198,14 +301,39 @@ async def process_alert_async(
             "alert_id": alert_id,
             "campaign_id": campaign_id,
             "report": parsed_report,
+            "trace": execution_trace,
             "raw_text": final_text,
-            "tool_call_count": len([t for t in tool_calls_trace if t.get("type") == "call"]),
+            "tool_call_count": len(execution_steps),
             "duration_ms": duration_ms,
         }
 
     except Exception as exc:
         duration_ms = round((time.time() - start_time) * 1000, 2)
         logger.error(f"Investigation failed for alert {alert_id}: {exc}", extra={"alert_id": alert_id})
+
+        if total_tokens == 0:
+            prompt_tokens = max(1, len(prompt) // 4)
+            candidates_tokens = max(0, len(final_text) // 4)
+            total_tokens = prompt_tokens + candidates_tokens
+
+        failed_trace = {
+            "execution_id": exec_id,
+            "alert_id": alert_id,
+            "campaign_id": campaign_id,
+            "agent_name": config.agent.name,
+            "model": MODEL_NAME,
+            "total_duration_ms": duration_ms,
+            "tokens": {
+                "input_tokens": prompt_tokens,
+                "output_tokens": candidates_tokens,
+                "total_tokens": total_tokens or (prompt_tokens + candidates_tokens),
+            },
+            "tool_calls_count": len(execution_steps),
+            "steps": execution_steps,
+            "status": "FAILED",
+            "error": str(exc),
+        }
+
         tracer.write_trace(
             alert_id=alert_id,
             campaign_id=campaign_id,
@@ -223,5 +351,6 @@ async def process_alert_async(
             "campaign_id": campaign_id,
             "error": str(exc),
             "report": None,
+            "trace": failed_trace,
             "duration_ms": duration_ms,
         }

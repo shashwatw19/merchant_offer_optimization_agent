@@ -1,8 +1,11 @@
 import asyncio
 import json
+import os
 import re
+import sys
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
+from dotenv import load_dotenv
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -10,7 +13,23 @@ from fastapi.staticfiles import StaticFiles
 from google.cloud import bigquery
 from starlette.templating import Jinja2Templates
 
+# Load environment variables early and synchronize keys
+load_dotenv()
+if os.environ.get("GEMINI_API_KEY") and not os.environ.get("GOOGLE_API_KEY"):
+    os.environ["GOOGLE_API_KEY"] = os.environ["GEMINI_API_KEY"]
+elif os.environ.get("GOOGLE_API_KEY") and not os.environ.get("GEMINI_API_KEY"):
+    os.environ["GEMINI_API_KEY"] = os.environ["GOOGLE_API_KEY"]
+
+SRC_DIR = Path(__file__).resolve().parent.parent
+if str(SRC_DIR) not in sys.path:
+    sys.path.insert(0, str(SRC_DIR))
+
+ROOT_DIR = Path(__file__).resolve().parent.parent.parent
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
+
 from agents.agent import process_alert_async
+from agents.tools.bigquery_tools import get_campaign_terms
 from core.bigquery_client import execute_query
 from core.config import get_config
 from core.logging import logger
@@ -49,12 +68,18 @@ def _report_path(alert_id: str) -> Path:
     return REPORT_DIR / f"report_{alert_id}.json"
 
 
+def _trace_path(alert_id: str) -> Path:
+    if not ALERT_ID_PATTERN.fullmatch(alert_id):
+        raise HTTPException(status_code=400, detail="Invalid alert ID.")
+    return REPORT_DIR / f"trace_{alert_id}.json"
+
+
 def _alerts_table() -> str:
     config = get_config()
     return f"`{config.gcp.project_id}.{config.gcp.gold_dataset}.alerts`"
 
 
-def _fetch_open_alerts(limit: int) -> List[Dict[str, Any]]:
+def _fetch_all_alerts(limit: int = 100) -> List[Dict[str, Any]]:
     sql = f"""
         SELECT
             alert_id,
@@ -67,7 +92,6 @@ def _fetch_open_alerts(limit: int) -> List[Dict[str, Any]]:
             status,
             created_at
         FROM {_alerts_table()}
-        WHERE status = 'OPEN'
         ORDER BY created_at DESC
         LIMIT @limit
     """
@@ -75,7 +99,7 @@ def _fetch_open_alerts(limit: int) -> List[Dict[str, Any]]:
     return execute_query(sql, parameters=parameters)
 
 
-def _fetch_open_alert(alert_id: str) -> Dict[str, Any]:
+def _fetch_alert(alert_id: str) -> Dict[str, Any]:
     sql = f"""
         SELECT
             alert_id,
@@ -88,7 +112,7 @@ def _fetch_open_alert(alert_id: str) -> Dict[str, Any]:
             status,
             created_at
         FROM {_alerts_table()}
-        WHERE alert_id = @alert_id AND status = 'OPEN'
+        WHERE alert_id = @alert_id
         LIMIT 1
     """
     parameters = [
@@ -98,7 +122,7 @@ def _fetch_open_alert(alert_id: str) -> Dict[str, Any]:
     if not rows:
         raise HTTPException(
             status_code=404,
-            detail="Open alert not found. It may have been removed or already processed.",
+            detail=f"Alert {alert_id} not found in BigQuery.",
         )
     return rows[0]
 
@@ -118,8 +142,10 @@ def _render_error(
 
 @app.get("/", response_class=HTMLResponse, name="dashboard")
 def dashboard(request: Request) -> HTMLResponse:
+    banner_msg = request.query_params.get("msg")
+    banner_count = request.query_params.get("count")
     try:
-        alerts = _fetch_open_alerts(limit=100)
+        alerts = _fetch_all_alerts(limit=100)
         for alert in alerts:
             rule_details = RULE_DETAILS.get(
                 str(alert.get("rule_id")),
@@ -129,7 +155,7 @@ def dashboard(request: Request) -> HTMLResponse:
             alert["rule_meaning"] = rule_details["meaning"]
             alert["has_report"] = _report_path(str(alert["alert_id"])).is_file()
     except Exception:
-        logger.exception("Could not load open alerts")
+        logger.exception("Could not load alerts from BigQuery")
         return _render_error(
             request,
             "Could not load alerts from BigQuery. Check your project configuration and credentials, then try again.",
@@ -139,8 +165,37 @@ def dashboard(request: Request) -> HTMLResponse:
     return templates.TemplateResponse(
         request,
         "dashboard.html",
-        {"alerts": alerts},
+        {
+            "alerts": alerts,
+            "banner_msg": banner_msg,
+            "banner_count": banner_count,
+        },
     )
+
+
+@app.post("/alerts/trigger", name="trigger_alerts")
+def trigger_alerts(request: Request) -> RedirectResponse:
+    try:
+        from alert import run_all_alerts, save_alerts_to_bigquery
+        config = get_config()
+        # Evaluate rules and capture any detected alerts
+        new_alerts = run_all_alerts(config.gcp.project_id, filter_active=True)
+        if new_alerts:
+            save_alerts_to_bigquery(new_alerts, config.gcp.project_id)
+            logger.info(f"Triggered and saved {len(new_alerts)} new alerts to BigQuery.")
+            redirect_url = f"{app.url_path_for('dashboard')}?msg=triggered&count={len(new_alerts)}"
+        else:
+            logger.info("Triggered alerts check: no new alerts detected (existing alerts may already be active).")
+            redirect_url = f"{app.url_path_for('dashboard')}?msg=no_new_alerts&count=0"
+    except Exception as exc:
+        logger.exception("Failed to trigger new alerts")
+        return _render_error(
+            request,
+            f"Failed to trigger alert generation workflow: {exc}",
+            status_code=500,
+        )
+
+    return RedirectResponse(url=redirect_url, status_code=303)
 
 
 @app.post("/alerts/{alert_id}/investigate", name="investigate_alert")
@@ -149,7 +204,7 @@ def investigate_alert(request: Request, alert_id: str) -> HTMLResponse:
         return _render_error(request, "Invalid alert ID.", status_code=400)
 
     try:
-        alert = _fetch_open_alert(alert_id)
+        alert = _fetch_alert(alert_id)
     except HTTPException as exc:
         return _render_error(request, str(exc.detail), status_code=exc.status_code)
     except Exception:
@@ -180,6 +235,14 @@ def investigate_alert(request: Request, alert_id: str) -> HTMLResponse:
             json.dumps(result["report"], indent=2, default=str),
             encoding="utf-8",
         )
+
+        # Save execution trace if present
+        if result.get("trace"):
+            trace_path = _trace_path(alert_id)
+            trace_path.write_text(
+                json.dumps(result["trace"], indent=2, default=str),
+                encoding="utf-8",
+            )
     except Exception:
         logger.exception("Could not complete or save investigation", extra={"alert_id": alert_id})
         return _render_error(
@@ -218,10 +281,37 @@ def view_report(request: Request, alert_id: str) -> HTMLResponse:
             status_code=500,
         )
 
+    # Load execution trace (from dedicated trace file or embedded in report)
+    trace = None
+    try:
+        trace_path = _trace_path(alert_id)
+        if trace_path.is_file():
+            trace = json.loads(trace_path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        logger.warning(f"Could not load trace file for alert {alert_id}: {exc}")
+
+    if not trace and isinstance(report, dict):
+        trace = report.get("execution_trace")
+
+    # Load original campaign terms from BigQuery to compare against agent recommendations
+    original_terms = None
+    campaign_id = report.get("campaign_id")
+    if campaign_id:
+        try:
+            terms_response = get_campaign_terms(str(campaign_id))
+            if terms_response and terms_response.get("success") and terms_response.get("terms"):
+                original_terms = terms_response["terms"]
+        except Exception as exc:
+            logger.warning(f"Could not fetch original campaign terms for {campaign_id}: {exc}")
+
     return templates.TemplateResponse(
         request,
         "report.html",
-        {"report": report},
+        {
+            "report": report,
+            "trace": trace,
+            "original_terms": original_terms,
+        },
     )
 
 

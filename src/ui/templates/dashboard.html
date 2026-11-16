@@ -1,70 +1,119 @@
 {% extends "base.html" %}
 
-{% block title %}Open alerts · Merchant Offer Agent{% endblock %}
+{% block title %}Campaign Alerts · Merchant Offer Agent{% endblock %}
 
 {% block content %}
   <section class="page-heading">
     <div>
       <p class="eyebrow">Investigation workspace</p>
-      <h1>Open alerts</h1>
-      <p class="subheading">Review campaign signals and run an evidence-backed agent investigation.</p>
+      <h1>Campaign Alerts</h1>
+      <p class="subheading">Monitor automated performance signals, initiate agent investigations, and review evidence-backed findings.</p>
     </div>
-    <span class="count-badge">{{ alerts|length }} open</span>
+    <div class="heading-actions">
+      <form method="post" action="{{ url_for('trigger_alerts') }}">
+        <button type="submit" class="btn btn-secondary">⚡ Trigger New Alerts</button>
+      </form>
+      <span class="count-badge">{{ alerts|length }} alert{{ 's' if alerts|length != 1 else '' }}</span>
+    </div>
   </section>
 
+  {% if banner_msg == 'triggered' %}
+    <div class="banner banner-success">
+      <span class="banner-icon">✓</span>
+      <div>
+        <strong>Alert Generation Complete:</strong> Evaluated detection rules in BigQuery.
+        {% if banner_count and banner_count != '0' %}
+          Successfully recorded <strong>{{ banner_count }}</strong> new alert(s).
+        {% else %}
+          Checked rules; active alerts already open or in cooldown.
+        {% endif %}
+      </div>
+    </div>
+  {% elif banner_msg == 'no_new_alerts' %}
+    <div class="banner banner-info">
+      <span class="banner-icon">ℹ</span>
+      <div>
+        <strong>Rule Evaluation Complete:</strong> No new alerts were triggered. All active campaigns are either healthy or have alerts already undergoing processing/cooldown.
+      </div>
+    </div>
+  {% endif %}
+
   {% if alerts %}
-    <div class="alert-list">
-      {% for alert in alerts %}
-        <article class="alert-card">
-          <div class="alert-card-top">
-            <div>
-              <p class="eyebrow">{{ alert.rule_id }} · {{ alert.alert_id }}</p>
-              <h2>{{ alert.rule_name }}</h2>
-              <p class="rule-meaning">{{ alert.rule_meaning }}</p>
-            </div>
-            <div class="alert-title-meta">
-              <span class="status-badge">{{ alert.status }}</span>
-              <h3>Campaign {{ alert.campaign_id }}</h3>
-            </div>
-          </div>
-          <dl class="metric-grid">
-            <div>
-              <dt>Merchant</dt>
-              <dd>{{ alert.merchant_id or "—" }}</dd>
-            </div>
-            <div>
-              <dt>Metric</dt>
-              <dd>{{ alert.metric_name or "—" }}</dd>
-            </div>
-            <div>
-              <dt>Observed</dt>
-              <dd>{{ alert.metric_value if alert.metric_value is not none else "—" }}</dd>
-            </div>
-            <div>
-              <dt>Threshold</dt>
-              <dd>{{ alert.threshold_value if alert.threshold_value is not none else "—" }}</dd>
-            </div>
-            <div>
-              <dt>Created</dt>
-              <dd>{{ alert.created_at or "—" }}</dd>
-            </div>
-          </dl>
-          <div class="card-actions">
-            <form method="post" action="{{ url_for('investigate_alert', alert_id=alert.alert_id) }}">
-              <button type="submit">Run investigation</button>
-            </form>
-            {% if alert.has_report %}
-              <a class="text-link" href="{{ url_for('view_report', alert_id=alert.alert_id) }}">View saved report</a>
-            {% endif %}
-          </div>
-        </article>
-      {% endfor %}
+    <div class="table-container">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Alert ID</th>
+            <th>Campaign</th>
+            <th>Merchant</th>
+            <th>Triggered Rule</th>
+            <th>Observed Metric</th>
+            <th>Threshold</th>
+            <th>Created Time</th>
+            <th>Status</th>
+            <th class="text-right">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for alert in alerts %}
+            <tr>
+              <td>
+                <span class="code-id" title="{{ alert.alert_id }}">{{ alert.alert_id }}</span>
+              </td>
+              <td>
+                <strong>{{ alert.campaign_id }}</strong>
+              </td>
+              <td>
+                {{ alert.merchant_id or "—" }}
+              </td>
+              <td>
+                <div class="rule-badge-group">
+                  <span class="rule-badge rule-{{ alert.rule_id|lower }}">{{ alert.rule_id }}</span>
+                  <span class="rule-title" title="{{ alert.rule_meaning }}">{{ alert.rule_name }}</span>
+                </div>
+              </td>
+              <td>
+                <div class="metric-cell">
+                  <span class="metric-name">{{ alert.metric_name or "metric" }}:</span>
+                  <strong class="metric-val">{{ alert.metric_value if alert.metric_value is not none else "—" }}</strong>
+                </div>
+              </td>
+              <td>
+                <span class="threshold-val">{{ alert.threshold_value if alert.threshold_value is not none else "—" }}</span>
+              </td>
+              <td class="text-nowrap">
+                {{ alert.created_at or "—" }}
+              </td>
+              <td>
+                <span class="status-badge status-{{ alert.status|lower }}">{{ alert.status }}</span>
+              </td>
+              <td class="text-right">
+                {% if alert.has_report %}
+                  <div class="action-btn-group">
+                    <a class="btn btn-primary btn-sm" href="{{ url_for('view_report', alert_id=alert.alert_id) }}">View Investigation</a>
+                    <form method="post" action="{{ url_for('investigate_alert', alert_id=alert.alert_id) }}">
+                      <button type="submit" class="btn btn-outline btn-sm" title="Re-run investigation">Re-run</button>
+                    </form>
+                  </div>
+                {% else %}
+                  <form method="post" action="{{ url_for('investigate_alert', alert_id=alert.alert_id) }}">
+                    <button type="submit" class="btn btn-primary btn-sm">Investigate</button>
+                  </form>
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
     </div>
   {% else %}
     <section class="empty-state">
       <span class="empty-icon" aria-hidden="true">✓</span>
-      <h2>No open alerts</h2>
-      <p>There are no alerts to investigate right now.</p>
+      <h2>No alerts found</h2>
+      <p>There are no alerts currently stored in BigQuery. You can run the detection engine to scan campaigns for anomalies.</p>
+      <form method="post" action="{{ url_for('trigger_alerts') }}">
+        <button type="submit" class="btn btn-primary">⚡ Trigger New Alerts</button>
+      </form>
     </section>
   {% endif %}
 {% endblock %}
