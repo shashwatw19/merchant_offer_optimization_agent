@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+
+{% block title %}Unable to complete request · Merchant Offer Agent{% endblock %}
+
+{% block content %}
+  <section class="empty-state error-state">
+    <span class="error-icon" aria-hidden="true">!</span>
+    <h1>Unable to complete request</h1>
+    <p>{{ message }}</p>
+    <a class="button-link" href="/">Return to open alerts</a>
+  </section>
+{% endblock %}

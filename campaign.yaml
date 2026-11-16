@@ -1,6 +1,6 @@
 agent:
   name: merchant_offer_optimization_agent
-  model: gemini-2.5-flash
+  model: gemini-3.5-flash
 
 objective: >
   Investigate campaign alerts and provide evidence-backed
@@ -20,7 +20,9 @@ tools:
 policy:
   allowed_thresholds:
     - 1000.0
+    - 1250.0
     - 1500.0
+    - 1750.0
     - 2000.0
 
   cashback_percent: 10.0
@@ -29,7 +31,7 @@ policy:
   budget_ceiling: 40000.0
 
 investigation:
-  max_tool_calls: 10
+  max_tool_calls: 9
   retry_count: 2
   max_retry_count: 2
   evidence_required: true
