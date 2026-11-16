@@ -1,565 +1,90 @@
 {% extends "base.html" %}
 
-{% block title %}Investigation Report · {{ report.alert_id }} · Merchant Offer Agent{% endblock %}
+{% block title %}Investigation report · Merchant Offer Agent{% endblock %}
 
 {% block content %}
-  <nav class="breadcrumb-nav">
-    <a class="back-link" href="/">← Back to Alert Management Queue</a>
-  </nav>
-
-  <!-- Report Header -->
-  <header class="report-header-banner">
+  <a class="back-link" href="/">← Back to open alerts</a>
+  <section class="page-heading report-heading">
     <div>
-      <p class="eyebrow">Investigation Report · {{ report.alert_id }}</p>
+      <p class="eyebrow">Investigation report · {{ report.alert_id }}</p>
       <h1>Campaign {{ report.campaign_id }}</h1>
-      <p class="timestamp-subheading">
-        Generated: {{ report.generated_at or "Recent" }} | Execution ID: <code>{{ report.execution_id or ("exec_" ~ report.alert_id) }}</code>
-      </p>
+      <p class="subheading">{{ report.summary or "Investigation completed without a summary." }}</p>
     </div>
-    <div class="report-status-badge-group">
-      <span class="status-badge status-{{ report.status|lower }}">{{ report.status }}</span>
-      <span class="simulation-pill">{{ report.simulation_type or "HISTORICAL_REPLAY" }}</span>
-    </div>
-  </header>
+    <span class="status-badge">{{ report.status }}</span>
+  </section>
 
-  <!-- Human Review Warning -->
-  <aside class="notice" role="alert">
-    <div class="notice-icon">⚠️</div>
-    <div>
-      <strong>Human Review Required:</strong>
-      This report is advisory. No campaign parameter adjustments or database mutations were applied.
-      All proposals require explicit merchant manager approval before execution.
-    </div>
+  <aside class="notice">
+    <strong>Human review required.</strong>
+    This report is advisory. No campaign changes or alert status updates were made.
   </aside>
 
-  <!-- Execution & Token Metrics Summary -->
-  <section class="metrics-section">
-    <div class="section-header-compact">
-      <h2>Execution &amp; Observability Metrics</h2>
-      <span class="muted text-sm">Observable execution metadata</span>
-    </div>
-
-    <div class="metrics-summary-grid">
-      <div class="metric-card">
-        <span class="metric-label">Execution Duration</span>
-        <span class="metric-value">
-          {% if metrics.duration_ms %}
-            {{ (metrics.duration_ms / 1000)|round(2) }}s
-          {% else %}
-            —
-          {% endif %}
-        </span>
-        <span class="metric-subtext">Total agent latency</span>
-      </div>
-
-      <div class="metric-card">
-        <span class="metric-label">Token Consumption</span>
-        <span class="metric-value font-mono">
-          {% if metrics.total_tokens %}
-            {{ "{:,}".format(metrics.total_tokens) }}
-          {% else %}
-            —
-          {% endif %}
-        </span>
-        <span class="metric-subtext">
-          {% if metrics.prompt_tokens or metrics.candidates_tokens %}
-            In: {{ "{:,}".format(metrics.prompt_tokens or 0) }} · Out: {{ "{:,}".format(metrics.candidates_tokens or 0) }}
-          {% else %}
-            Not captured
-          {% endif %}
-        </span>
-      </div>
-
-      <div class="metric-card">
-        <span class="metric-label">Tool Invocations</span>
-        <span class="metric-value">
-          {{ metrics.tool_call_count if metrics.tool_call_count is not none else (tool_calls|length if tool_calls else 0) }}
-        </span>
-        <span class="metric-subtext">
-          {% if metrics.tool_latency_ms %}
-            Cumulative latency: {{ (metrics.tool_latency_ms / 1000)|round(2) }}s
-          {% else %}
-            Read-only queries
-          {% endif %}
-        </span>
-      </div>
-
-      <div class="metric-card">
-        <span class="metric-label">LLM Model</span>
-        <span class="metric-value text-base font-mono">
-          {{ metrics.model or "gemini-3.5-flash" }}
-        </span>
-        <span class="metric-subtext">Google ADK Runner</span>
-      </div>
-    </div>
-
-    <!-- Collapsible Observable Tool Calls Trace -->
-    {% if tool_calls %}
-      <details class="tool-trace-accordion">
-        <summary>View Observable Tool Executions ({{ tool_calls|length }} events)</summary>
-        <div class="tool-trace-table-container">
-          <table class="data-table-compact">
-            <thead>
-              <tr>
-                <th>Event</th>
-                <th>Tool Name</th>
-                <th>Execution Latency</th>
-                <th>Details / Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for event in tool_calls %}
-                <tr>
-                  <td>
-                    <span class="badge-mini badge-{{ event.type }}">{{ event.type|upper }}</span>
-                  </td>
-                  <td><code>{{ event.name }}</code></td>
-                  <td class="font-mono text-sm">
-                    {{ event.duration_ms ~ "ms" if event.duration_ms else "—" }}
-                  </td>
-                  <td class="text-sm muted truncate">
-                    {% if event.args %}
-                      <code>{{ event.args|string }}</code>
-                    {% elif event.response %}
-                      <span title="{{ event.response }}">{{ event.response[:120] }}...</span>
-                    {% else %}
-                      —
-                    {% endif %}
-                  </td>
-                </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-      </details>
-    {% endif %}
-  </section>
-
-  <!-- Executive Summary -->
-  <section class="report-section card-box">
-    <h2>1. Executive Summary</h2>
-    <p class="summary-paragraph">
-      {{ report.summary or "Investigation completed without an executive summary." }}
-    </p>
-  </section>
-
-  <!-- Analysis & Key Findings with Verifiable Citations -->
-  <section class="report-section card-box">
-    <div class="section-header-compact">
-      <h2>2. Analysis &amp; Verifiable Evidence</h2>
-      <span class="provenance-badge">Click any citation to verify against Bronze source data</span>
-    </div>
-
+  <section class="report-section">
+    <h2>Findings</h2>
     {% if report.findings %}
-      <div class="table-container">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th style="width: 45px;">#</th>
-              <th>Observation / Finding</th>
-              <th>Verifiable Evidence Citations</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for finding in report.findings %}
-              <tr>
-                <td class="text-center font-mono text-muted">{{ loop.index }}</td>
-                <td class="observation-cell">
-                  <p>{{ finding.observation }}</p>
-                </td>
-                <td class="evidence-cell">
-                  {% if finding.evidence %}
-                    <div class="evidence-pills-wrap">
-                      {% for cite in finding.evidence %}
-                        <button
-                          type="button"
-                          class="evidence-pill"
-                          onclick="openEvidenceModal('{{ cite }}', '{{ report.campaign_id }}', '{{ report.merchant_id or '' }}', '{{ finding.observation|replace('\'', '\\\'')|replace('\n', ' ') }}')"
-                          title="Click to query and inspect original Bronze-layer source record"
-                        >
-                          <span class="pill-icon">🔍</span>
-                          <span class="pill-text">{{ cite }}</span>
-                        </button>
-                      {% endfor %}
-                    </div>
-                  {% else %}
-                    <span class="muted text-sm">No citations attached</span>
-                  {% endif %}
-                </td>
-              </tr>
-            {% endfor %}
-          </tbody>
-        </table>
+      <div class="report-list">
+        {% for finding in report.findings %}
+          <article class="report-card">
+            <p>{{ finding.observation }}</p>
+            {% if finding.evidence %}
+              <h3>Evidence references</h3>
+              <ul class="evidence-list">
+                {% for evidence in finding.evidence %}
+                  <li><code>{{ evidence }}</code></li>
+                {% endfor %}
+              </ul>
+            {% endif %}
+          </article>
+        {% endfor %}
       </div>
     {% else %}
       <p class="muted">No findings were included in this report.</p>
     {% endif %}
   </section>
 
-  <!-- Diagnostic Hypotheses -->
-  <section class="report-section card-box">
-    <h2>3. Root Cause Hypotheses &amp; Evaluation</h2>
+  <section class="report-section">
+    <h2>Hypotheses</h2>
     {% if report.hypotheses %}
-      <div class="table-container">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th style="width: 45px;">#</th>
-              <th>Diagnostic Hypothesis</th>
-              <th>Evaluation Status</th>
-              <th>Rationale &amp; Supporting Analysis</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for hypothesis in report.hypotheses %}
-              <tr>
-                <td class="text-center font-mono text-muted">{{ loop.index }}</td>
-                <td><strong>{{ hypothesis.text }}</strong></td>
-                <td>
-                  <span class="hypothesis-badge hyp-{{ hypothesis.status|lower }}">
-                    {{ hypothesis.status }}
-                  </span>
-                </td>
-                <td class="text-sm">
-                  {{ hypothesis.rationale or "Evaluation completed without additional notes." }}
-                </td>
-              </tr>
-            {% endfor %}
-          </tbody>
-        </table>
+      <div class="report-list">
+        {% for hypothesis in report.hypotheses %}
+          <article class="report-card">
+            <div class="hypothesis-heading">
+              <h3>{{ hypothesis.text }}</h3>
+              <span class="status-badge status-{{ hypothesis.status|lower }}">{{ hypothesis.status }}</span>
+            </div>
+            {% if hypothesis.rationale %}<p>{{ hypothesis.rationale }}</p>{% endif %}
+          </article>
+        {% endfor %}
       </div>
     {% else %}
-      <p class="muted">No diagnostic hypotheses were evaluated.</p>
+      <p class="muted">No hypotheses were included in this report.</p>
     {% endif %}
   </section>
 
-  <!-- Strategic Proposal & Historical Replay -->
-  <section class="report-section card-box">
-    <h2>4. Strategic Proposal &amp; Historical Replay Simulation</h2>
+  <section class="report-section">
+    <h2>Proposal</h2>
     {% if report.proposal %}
-      <div class="proposal-card">
-        <div class="proposal-card-header">
-          <div>
-            <span class="action-type-badge action-{{ (report.proposal.get('type') or 'TEST')|lower }}">
-              Proposed Action: {{ report.proposal.get('type') or "TEST" }}
-            </span>
-          </div>
-          {% if report.proposal.get('min_spend') is not none %}
-            <span class="proposal-highlight">₹{{ "{:,.2f}".format(report.proposal.get('min_spend')|float) }} Minimum Spend</span>
+      <article class="report-card">
+        <div class="hypothesis-heading">
+          <h3>{{ report.proposal.type }}</h3>
+          {% if report.proposal.min_spend is not none %}
+            <span class="proposal-value">₹{{ report.proposal.min_spend }} minimum spend</span>
           {% endif %}
         </div>
-
         <dl class="metric-grid proposal-grid">
-          <div>
-            <dt>Action Type</dt>
-            <dd><code>{{ report.proposal.get('type') or "TEST" }}</code></dd>
-          </div>
-          <div>
-            <dt>Proposed Min Spend</dt>
-            <dd>
-              {% if report.proposal.get('min_spend') is not none %}
-                ₹{{ "{:,.2f}".format(report.proposal.get('min_spend')|float) }}
-              {% else %}
-                —
-              {% endif %}
-            </dd>
-          </div>
-          <div>
-            <dt>Cashback Percentage</dt>
-            <dd>
-              {% if report.proposal.get('cashback_pct') is not none %}
-                {{ report.proposal.get('cashback_pct') }}%
-              {% else %}
-                —
-              {% endif %}
-            </dd>
-          </div>
-          <div>
-            <dt>Cashback Cap</dt>
-            <dd>
-              {% if report.proposal.get('cashback_cap') is not none %}
-                ₹{{ "{:,.2f}".format(report.proposal.get('cashback_cap')|float) }}
-              {% else %}
-                —
-              {% endif %}
-            </dd>
-          </div>
-          <div>
-            <dt>Simulation Methodology</dt>
-            <dd>{{ report.simulation_type or "HISTORICAL_REPLAY" }}</dd>
-          </div>
+          {% if report.proposal.cashback_pct is not none %}
+            <div><dt>Cashback</dt><dd>{{ report.proposal.cashback_pct }}%</dd></div>
+          {% endif %}
+          {% if report.proposal.cashback_cap is not none %}
+            <div><dt>Cashback cap</dt><dd>₹{{ report.proposal.cashback_cap }}</dd></div>
+          {% endif %}
+          {% if report.simulation_type %}
+            <div><dt>Simulation</dt><dd>{{ report.simulation_type }}</dd></div>
+          {% endif %}
         </dl>
-
-        {% if report.proposal.get('rationale') %}
-          <div class="proposal-rationale">
-            <strong>Strategic Rationale:</strong>
-            <p>{{ report.proposal.get('rationale') }}</p>
-          </div>
-        {% endif %}
-      </div>
+        {% if report.proposal.rationale %}<p>{{ report.proposal.rationale }}</p>{% endif %}
+      </article>
     {% else %}
-      <p class="muted">No proposal was submitted in this report.</p>
+      <p class="muted">No proposal was included in this report.</p>
     {% endif %}
   </section>
-
-  <!-- Policy Governance & Risk Controls -->
-  <section class="report-section card-box">
-    <h2>5. Risk Assessment &amp; Policy Governance</h2>
-    <div class="table-container">
-      <table class="data-table">
-        <thead>
-          <tr>
-            <th>Governance Control</th>
-            <th>Standard Requirement</th>
-            <th>Evaluation Result</th>
-            <th class="text-center">Compliance</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for check in governance_checks %}
-            <tr>
-              <td><strong>{{ check.name }}</strong></td>
-              <td class="text-sm muted">{{ check.standard }}</td>
-              <td class="text-sm">{{ check.detail }}</td>
-              <td class="text-center">
-                <span class="compliance-badge badge-{{ check.status|lower }}">
-                  ✓ {{ check.status }}
-                </span>
-              </td>
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </section>
-
-  <!-- Technical Utilities & Actions -->
-  <footer class="report-action-bar">
-    <div class="action-btn-group">
-      <a class="button-link" href="{{ url_for('download_report_markdown', alert_id=report.alert_id) }}">
-        ↓ Download Markdown Report
-      </a>
-      <button type="button" class="button-secondary" onclick="openJsonModal()">
-        { } View Raw JSON
-      </button>
-    </div>
-
-    <form method="post" action="{{ url_for('investigate_alert', alert_id=report.alert_id) }}" class="inline-form">
-      <button type="submit" class="button-outline" onclick="this.innerHTML='Re-running...';">
-        ↻ Re-run Investigation
-      </button>
-    </form>
-  </footer>
-
-  <!-- ======================================================== -->
-  <!-- MODAL 1: INTERACTIVE EVIDENCE VERIFICATION DRAWER       -->
-  <!-- ======================================================== -->
-  <div id="evidence-modal" class="drawer-overlay" aria-hidden="true" onclick="if(event.target===this) closeEvidenceModal()">
-    <div class="drawer-panel" role="dialog" aria-labelledby="drawer-title">
-      <div class="drawer-header">
-        <div>
-          <p class="eyebrow">Evidence Verification</p>
-          <h2 id="drawer-title" class="drawer-title">Verifying Source Data...</h2>
-        </div>
-        <button type="button" class="close-drawer-btn" onclick="closeEvidenceModal()" aria-label="Close verification panel">✕</button>
-      </div>
-
-      <div class="drawer-body">
-        <!-- Claim Context Box -->
-        <div class="claim-box">
-          <span class="claim-label">Report Finding:</span>
-          <p id="claim-text" class="claim-content"></p>
-        </div>
-
-        <!-- Provenance Metadata Banner -->
-        <div class="provenance-banner">
-          <div class="provenance-item">
-            <span class="prov-label">Source Layer</span>
-            <span id="prov-layer" class="prov-value">BRONZE (Raw Ingestion)</span>
-          </div>
-          <div class="provenance-item">
-            <span class="prov-label">Underlying Table</span>
-            <span id="prov-table" class="prov-value font-mono">Loading...</span>
-          </div>
-          <div class="provenance-item">
-            <span class="prov-label">Verification Verdict</span>
-            <span id="prov-verdict" class="prov-value verdict-badge">Pending</span>
-          </div>
-        </div>
-
-        <!-- Ingestion Lineage Details -->
-        <div id="lineage-box" class="lineage-container">
-          <span class="prov-label">Data Lineage Trace:</span>
-          <ul id="lineage-list" class="lineage-steps"></ul>
-        </div>
-
-        <!-- Actual Bronze Records Data Table -->
-        <div class="raw-data-section">
-          <div class="section-header-compact">
-            <h3>Underlying Raw Records (BigQuery)</h3>
-            <span id="record-count-badge" class="badge-mini">0 records</span>
-          </div>
-
-          <div id="evidence-loading" class="evidence-loading-state">
-            <div class="spinner"></div>
-            <p>Querying BigQuery Bronze raw ingestion layer...</p>
-          </div>
-
-          <div id="evidence-data-container" class="evidence-data-container" style="display: none;">
-            <div id="evidence-table-wrap" class="table-container"></div>
-          </div>
-
-          <div id="evidence-error" class="error-notice" style="display: none;"></div>
-        </div>
-      </div>
-
-      <div class="drawer-footer">
-        <span class="disclaimer-text">Verified against raw BigQuery storage. PII masked.</span>
-        <button type="button" class="button-secondary" onclick="closeEvidenceModal()">Done</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- ======================================================== -->
-  <!-- MODAL 2: RAW JSON INSPECTOR                             -->
-  <!-- ======================================================== -->
-  <div id="json-modal" class="drawer-overlay" aria-hidden="true" onclick="if(event.target===this) closeJsonModal()">
-    <div class="modal-box" role="dialog" aria-labelledby="json-title">
-      <div class="drawer-header">
-        <h2 id="json-title">Raw Investigation Report JSON</h2>
-        <button type="button" class="close-drawer-btn" onclick="closeJsonModal()">✕</button>
-      </div>
-      <div class="modal-body">
-        <pre><code id="json-content">{{ raw_json }}</code></pre>
-      </div>
-      <div class="drawer-footer">
-        <button type="button" class="button-secondary" onclick="copyJsonText()">Copy JSON</button>
-        <button type="button" class="button-link" onclick="closeJsonModal()">Close</button>
-      </div>
-    </div>
-  </div>
-{% endblock %}
-
-{% block scripts %}
-<script>
-  function openEvidenceModal(evidenceRef, campaignId, merchantId, claimText) {
-    const modal = document.getElementById('evidence-modal');
-    modal.classList.add('open');
-    modal.setAttribute('aria-hidden', 'false');
-
-    document.getElementById('drawer-title').textContent = evidenceRef;
-    document.getElementById('claim-text').textContent = claimText || 'Report claim evaluation.';
-    document.getElementById('evidence-loading').style.display = 'flex';
-    document.getElementById('evidence-data-container').style.display = 'none';
-    document.getElementById('evidence-error').style.display = 'none';
-
-    document.getElementById('prov-layer').textContent = 'Resolving...';
-    document.getElementById('prov-table').textContent = 'Connecting to BigQuery...';
-    document.getElementById('prov-verdict').textContent = 'Validating';
-    document.getElementById('lineage-list').innerHTML = '';
-
-    const url = `/api/evidence/verify?ref=${encodeURIComponent(evidenceRef)}&campaign_id=${encodeURIComponent(campaignId)}&merchant_id=${encodeURIComponent(merchantId)}`;
-
-    fetch(url)
-      .then(res => res.json())
-      .then(data => {
-        document.getElementById('evidence-loading').style.display = 'none';
-
-        if (!data || !data.success) {
-          document.getElementById('evidence-error').style.display = 'block';
-          document.getElementById('evidence-error').textContent = data ? (data.explanation || data.error) : 'Unable to retrieve evidence data.';
-          document.getElementById('prov-verdict').textContent = data.verification_verdict || 'ERROR';
-          document.getElementById('prov-table').textContent = data.source_table || 'N/A';
-          return;
-        }
-
-        document.getElementById('evidence-data-container').style.display = 'block';
-        document.getElementById('prov-layer').textContent = data.source_layer || 'BRONZE';
-        document.getElementById('prov-table').textContent = data.source_table || 'N/A';
-        document.getElementById('prov-verdict').textContent = data.verification_verdict || 'VERIFIED';
-        document.getElementById('record-count-badge').textContent = `${data.record_count || 0} record(s)`;
-
-        // Render Lineage
-        const lineageUl = document.getElementById('lineage-list');
-        lineageUl.innerHTML = '';
-        if (data.lineage && data.lineage.length > 0) {
-          data.lineage.forEach(step => {
-            const li = document.createElement('li');
-            li.innerHTML = `<strong>${step.layer}:</strong> <code>${step.table}</code> &mdash; <span class="muted">${step.role}</span>`;
-            lineageUl.appendChild(li);
-          });
-        }
-
-        // Render Records Table
-        const tableWrap = document.getElementById('evidence-table-wrap');
-        tableWrap.innerHTML = '';
-
-        if (!data.records || data.records.length === 0) {
-          tableWrap.innerHTML = '<p class="muted text-sm" style="padding: 1rem;">No matching rows found in source table.</p>';
-          return;
-        }
-
-        const table = document.createElement('table');
-        table.className = 'data-table-compact';
-
-        // Headers
-        const cols = Object.keys(data.records[0]);
-        const thead = document.createElement('thead');
-        const headerRow = document.createElement('tr');
-        cols.forEach(col => {
-          const th = document.createElement('th');
-          th.textContent = col;
-          headerRow.appendChild(th);
-        });
-        thead.appendChild(headerRow);
-        table.appendChild(thead);
-
-        // Body
-        const tbody = document.createElement('tbody');
-        data.records.forEach(row => {
-          const tr = document.createElement('tr');
-          cols.forEach(col => {
-            const td = document.createElement('td');
-            const val = row[col];
-            td.className = 'font-mono text-sm';
-            td.textContent = (val !== null && val !== undefined) ? String(val) : '—';
-            tr.appendChild(td);
-          });
-          tbody.appendChild(tr);
-        });
-        table.appendChild(tbody);
-        tableWrap.appendChild(table);
-      })
-      .catch(err => {
-        document.getElementById('evidence-loading').style.display = 'none';
-        document.getElementById('evidence-error').style.display = 'block';
-        document.getElementById('evidence-error').textContent = 'Network or server error while querying evidence: ' + err.message;
-      });
-  }
-
-  function closeEvidenceModal() {
-    const modal = document.getElementById('evidence-modal');
-    modal.classList.remove('open');
-    modal.setAttribute('aria-hidden', 'true');
-  }
-
-  function openJsonModal() {
-    const modal = document.getElementById('json-modal');
-    modal.classList.add('open');
-    modal.setAttribute('aria-hidden', 'false');
-  }
-
-  function closeJsonModal() {
-    const modal = document.getElementById('json-modal');
-    modal.classList.remove('open');
-    modal.setAttribute('aria-hidden', 'true');
-  }
-
-  function copyJsonText() {
-    const text = document.getElementById('json-content').textContent;
-    navigator.clipboard.writeText(text).then(() => {
-      alert('Report JSON copied to clipboard!');
-    });
-  }
-</script>
 {% endblock %}
