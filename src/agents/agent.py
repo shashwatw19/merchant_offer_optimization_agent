@@ -120,6 +120,11 @@ async def process_alert_async(
     content = types.Content(role="user", parts=[types.Part(text=prompt)])
     final_text = ""
     tool_calls_trace: List[Dict[str, Any]] = []
+    tool_start_times: Dict[str, float] = {}
+    prompt_tokens = 0
+    candidates_tokens = 0
+    total_tokens = 0
+    cached_tokens = 0
 
     try:
         async for event in runner.run_async(
@@ -127,10 +132,18 @@ async def process_alert_async(
             session_id=session.id,
             new_message=content,
         ):
+            if hasattr(event, "usage_metadata") and event.usage_metadata:
+                um = event.usage_metadata
+                prompt_tokens = getattr(um, "prompt_token_count", prompt_tokens) or prompt_tokens
+                candidates_tokens = getattr(um, "candidates_token_count", candidates_tokens) or candidates_tokens
+                total_tokens = getattr(um, "total_token_count", total_tokens) or total_tokens
+                cached_tokens = getattr(um, "cached_content_token_count", cached_tokens) or cached_tokens
+
             if hasattr(event, "content") and event.content:
                 for part in event.content.parts:
                     if getattr(part, "function_call", None):
                         fc = part.function_call
+                        tool_start_times[fc.name] = time.time()
                         logger.info(f"Tool called: {fc.name}", extra={"alert_id": alert_id, "tool_name": fc.name})
                         tool_calls_trace.append({
                             "type": "call",
@@ -140,17 +153,31 @@ async def process_alert_async(
                         })
                     elif getattr(part, "function_response", None):
                         fr = part.function_response
-                        logger.info(f"Tool responded: {fr.name}", extra={"alert_id": alert_id, "tool_name": fr.name})
+                        start_t = tool_start_times.get(fr.name, time.time())
+                        tool_duration_ms = round((time.time() - start_t) * 1000, 2)
+                        logger.info(f"Tool responded: {fr.name} ({tool_duration_ms}ms)", extra={"alert_id": alert_id, "tool_name": fr.name})
                         tool_calls_trace.append({
                             "type": "response",
                             "name": fr.name,
                             "response": str(fr.response)[:500],
+                            "duration_ms": tool_duration_ms,
                             "timestamp": time.time(),
                         })
                     elif getattr(part, "text", None):
                         final_text += part.text
 
         duration_ms = round((time.time() - start_time) * 1000, 2)
+        total_tool_latency_ms = round(sum(t.get("duration_ms", 0) for t in tool_calls_trace if t.get("type") == "response"), 2)
+        metrics = {
+            "duration_ms": duration_ms,
+            "tool_latency_ms": total_tool_latency_ms,
+            "prompt_tokens": prompt_tokens,
+            "candidates_tokens": candidates_tokens,
+            "total_tokens": total_tokens,
+            "cached_tokens": cached_tokens,
+            "tool_call_count": len([t for t in tool_calls_trace if t.get("type") == "call"]),
+            "model": MODEL_NAME,
+        }
         parsed_report = extract_json_report(final_text)
 
         now_str = now_ist_str()
@@ -175,12 +202,14 @@ async def process_alert_async(
                 "simulation_type": "HISTORICAL_REPLAY",
                 "future_incremental_spend": None,
                 "human_approval_required": True,
+                "metrics": metrics,
             }
         else:
             if not parsed_report.get("execution_id"):
                 parsed_report["execution_id"] = exec_id
             if not parsed_report.get("generated_at"):
                 parsed_report["generated_at"] = now_str
+            parsed_report["metrics"] = metrics
 
         tracer.write_trace(
             alert_id=alert_id,
@@ -190,6 +219,7 @@ async def process_alert_async(
             report=parsed_report,
             duration_ms=duration_ms,
             execution_id=exec_id,
+            metrics=metrics,
         )
 
         return {
@@ -200,12 +230,24 @@ async def process_alert_async(
             "report": parsed_report,
             "raw_text": final_text,
             "tool_call_count": len([t for t in tool_calls_trace if t.get("type") == "call"]),
+            "tool_calls": tool_calls_trace,
             "duration_ms": duration_ms,
+            "metrics": metrics,
         }
 
     except Exception as exc:
         duration_ms = round((time.time() - start_time) * 1000, 2)
         logger.error(f"Investigation failed for alert {alert_id}: {exc}", extra={"alert_id": alert_id})
+        metrics = {
+            "duration_ms": duration_ms,
+            "tool_latency_ms": 0.0,
+            "prompt_tokens": prompt_tokens,
+            "candidates_tokens": candidates_tokens,
+            "total_tokens": total_tokens,
+            "cached_tokens": cached_tokens,
+            "tool_call_count": len([t for t in tool_calls_trace if t.get("type") == "call"]),
+            "model": MODEL_NAME,
+        }
         tracer.write_trace(
             alert_id=alert_id,
             campaign_id=campaign_id,
@@ -215,6 +257,7 @@ async def process_alert_async(
             duration_ms=duration_ms,
             error=str(exc),
             execution_id=exec_id,
+            metrics=metrics,
         )
         return {
             "success": False,
@@ -223,5 +266,7 @@ async def process_alert_async(
             "campaign_id": campaign_id,
             "error": str(exc),
             "report": None,
+            "tool_calls": tool_calls_trace,
             "duration_ms": duration_ms,
+            "metrics": metrics,
         }

@@ -67,3 +67,4 @@ class InvestigationReport(BaseModel):
     future_incremental_spend: Optional[float] = None  # Guardrail: Must remain null/None
     human_approval_required: bool = True
     summary: Optional[str] = None
+    metrics: Optional[Dict[str, Any]] = None

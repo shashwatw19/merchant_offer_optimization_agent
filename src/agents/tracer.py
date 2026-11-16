@@ -22,6 +22,7 @@ class ExecutionTracer:
         duration_ms: float,
         error: Optional[str] = None,
         execution_id: Optional[str] = None,
+        metrics: Optional[Dict[str, Any]] = None,
     ) -> Path:
         """Append an execution trace record to the daily JSONL trace log."""
         today = now_ist().strftime("%Y%m%d")
@@ -38,6 +39,7 @@ class ExecutionTracer:
             "duration_ms": duration_ms,
             "tool_call_count": len(tool_calls),
             "tool_calls": tool_calls,
+            "metrics": metrics,
             "report": report,
             "error": error,
             "status": "FAILED" if error else "SUCCESS",

@@ -1,70 +1,168 @@
 {% extends "base.html" %}
 
-{% block title %}Open alerts · Merchant Offer Agent{% endblock %}
+{% block title %}Alert Management Queue · Merchant Offer Agent{% endblock %}
 
 {% block content %}
   <section class="page-heading">
     <div>
-      <p class="eyebrow">Investigation workspace</p>
-      <h1>Open alerts</h1>
-      <p class="subheading">Review campaign signals and run an evidence-backed agent investigation.</p>
+      <p class="eyebrow">Investigation Workspace</p>
+      <h1>Alert Management Queue</h1>
+      <p class="subheading">Monitor campaign signals, evaluate severity, and launch evidence-backed agent investigations.</p>
     </div>
-    <span class="count-badge">{{ alerts|length }} open</span>
+    <div class="summary-stats">
+      <span class="count-badge count-open">{{ status_counts.OPEN }} Open</span>
+      <span class="count-badge count-resolved">{{ status_counts.RESOLVED }} Resolved</span>
+      <span class="count-badge count-total">{{ status_counts.ALL }} Total</span>
+    </div>
   </section>
 
+  <!-- Filter & Search Toolbar -->
+  <section class="filter-toolbar">
+    <div class="filter-pills" role="tablist" aria-label="Alert status filter">
+      <a href="/?status=ALL&rule={{ active_rule }}{% if search_query %}&q={{ search_query }}{% endif %}"
+         class="filter-pill {% if active_status == 'ALL' %}active{% endif %}">
+        All <span class="pill-count">{{ status_counts.ALL }}</span>
+      </a>
+      <a href="/?status=OPEN&rule={{ active_rule }}{% if search_query %}&q={{ search_query }}{% endif %}"
+         class="filter-pill {% if active_status == 'OPEN' %}active{% endif %}">
+        Open <span class="pill-count">{{ status_counts.OPEN }}</span>
+      </a>
+      <a href="/?status=PROCESSING&rule={{ active_rule }}{% if search_query %}&q={{ search_query }}{% endif %}"
+         class="filter-pill {% if active_status == 'PROCESSING' %}active{% endif %}">
+        Processing <span class="pill-count">{{ status_counts.PROCESSING }}</span>
+      </a>
+      <a href="/?status=RESOLVED&rule={{ active_rule }}{% if search_query %}&q={{ search_query }}{% endif %}"
+         class="filter-pill {% if active_status == 'RESOLVED' %}active{% endif %}">
+        Resolved <span class="pill-count">{{ status_counts.RESOLVED }}</span>
+      </a>
+      <a href="/?status=ERROR&rule={{ active_rule }}{% if search_query %}&q={{ search_query }}{% endif %}"
+         class="filter-pill {% if active_status == 'ERROR' %}active{% endif %}">
+        Error <span class="pill-count">{{ status_counts.ERROR }}</span>
+      </a>
+    </div>
+
+    <form method="get" action="/" class="search-form">
+      <input type="hidden" name="status" value="{{ active_status }}">
+      
+      <select name="rule" class="rule-select" onchange="this.form.submit()">
+        <option value="ALL" {% if active_rule == 'ALL' %}selected{% endif %}>All Rules (R1, R2, R3)</option>
+        <option value="R1" {% if active_rule == 'R1' %}selected{% endif %}>R1 · Low Redemption (&lt;5%)</option>
+        <option value="R2" {% if active_rule == 'R2' %}selected{% endif %}>R2 · Sudden Drop (≥50%)</option>
+        <option value="R3" {% if active_rule == 'R3' %}selected{% endif %}>R3 · Existing Cust Share (≥75%)</option>
+      </select>
+
+      <div class="search-input-group">
+        <input
+          type="text"
+          name="q"
+          class="search-input"
+          placeholder="Search by Alert, Campaign, or Merchant ID..."
+          value="{{ search_query }}"
+        >
+        {% if search_query or active_status != 'ALL' or active_rule != 'ALL' %}
+          <a href="/" class="clear-search" title="Reset all filters">✕ Clear</a>
+        {% endif %}
+        <button type="submit" class="search-button">Filter</button>
+      </div>
+    </form>
+  </section>
+
+  <!-- Alert Table View -->
   {% if alerts %}
-    <div class="alert-list">
-      {% for alert in alerts %}
-        <article class="alert-card">
-          <div class="alert-card-top">
-            <div>
-              <p class="eyebrow">{{ alert.rule_id }} · {{ alert.alert_id }}</p>
-              <h2>{{ alert.rule_name }}</h2>
-              <p class="rule-meaning">{{ alert.rule_meaning }}</p>
-            </div>
-            <div class="alert-title-meta">
-              <span class="status-badge">{{ alert.status }}</span>
-              <h3>Campaign {{ alert.campaign_id }}</h3>
-            </div>
-          </div>
-          <dl class="metric-grid">
-            <div>
-              <dt>Merchant</dt>
-              <dd>{{ alert.merchant_id or "—" }}</dd>
-            </div>
-            <div>
-              <dt>Metric</dt>
-              <dd>{{ alert.metric_name or "—" }}</dd>
-            </div>
-            <div>
-              <dt>Observed</dt>
-              <dd>{{ alert.metric_value if alert.metric_value is not none else "—" }}</dd>
-            </div>
-            <div>
-              <dt>Threshold</dt>
-              <dd>{{ alert.threshold_value if alert.threshold_value is not none else "—" }}</dd>
-            </div>
-            <div>
-              <dt>Created</dt>
-              <dd>{{ alert.created_at or "—" }}</dd>
-            </div>
-          </dl>
-          <div class="card-actions">
-            <form method="post" action="{{ url_for('investigate_alert', alert_id=alert.alert_id) }}">
-              <button type="submit">Run investigation</button>
-            </form>
-            {% if alert.has_report %}
-              <a class="text-link" href="{{ url_for('view_report', alert_id=alert.alert_id) }}">View saved report</a>
-            {% endif %}
-          </div>
-        </article>
-      {% endfor %}
+    <div class="table-container">
+      <table class="alert-table">
+        <thead>
+          <tr>
+            <th>Alert ID</th>
+            <th>Campaign</th>
+            <th>Merchant</th>
+            <th>Triggered Rule</th>
+            <th class="text-right">Observed</th>
+            <th class="text-right">Threshold</th>
+            <th>Severity</th>
+            <th>Status</th>
+            <th>Created</th>
+            <th class="text-center">Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for alert in alerts %}
+            <tr class="alert-row">
+              <td>
+                <span class="mono-badge">{{ alert.alert_id }}</span>
+              </td>
+              <td>
+                <strong>{{ alert.campaign_id }}</strong>
+              </td>
+              <td>
+                <span class="merchant-tag">{{ alert.merchant_id or "—" }}</span>
+              </td>
+              <td>
+                <div class="rule-cell">
+                  <span class="rule-id-badge">{{ alert.rule_id }}</span>
+                  <div class="rule-text">
+                    <span class="rule-title">{{ alert.rule_name }}</span>
+                    <span class="rule-hint">{{ alert.rule_meaning }}</span>
+                  </div>
+                </div>
+              </td>
+              <td class="text-right font-mono">
+                {% if alert.metric_value is not none %}
+                  {{ "%.2f"|format(alert.metric_value|float) }}%
+                {% else %}
+                  —
+                {% endif %}
+              </td>
+              <td class="text-right font-mono muted">
+                {% if alert.threshold_value is not none %}
+                  {{ "%.2f"|format(alert.threshold_value|float) }}%
+                {% else %}
+                  —
+                {% endif %}
+              </td>
+              <td>
+                <span class="severity-badge severity-{{ alert.severity|lower }}">
+                  {{ alert.severity }}
+                </span>
+              </td>
+              <td>
+                <span class="status-badge status-{{ alert.status|lower }}">
+                  {{ alert.status }}
+                </span>
+              </td>
+              <td class="time-cell">
+                <span class="timestamp-text">{{ alert.created_at[:16] if alert.created_at else "—" }}</span>
+              </td>
+              <td class="action-cell text-center">
+                <div class="action-btn-group">
+                  {% if alert.has_report %}
+                    <a class="button-link-secondary" href="{{ url_for('view_report', alert_id=alert.alert_id) }}">
+                      View Report
+                    </a>
+                  {% endif %}
+                  
+                  {% if alert.status in ['OPEN', 'ERROR'] %}
+                    <form method="post" action="{{ url_for('investigate_alert', alert_id=alert.alert_id) }}" class="inline-form">
+                      <button type="submit" class="button-investigate" onclick="this.innerHTML='Investigating...'; this.classList.add('loading');">
+                        Investigate
+                      </button>
+                    </form>
+                  {% elif alert.status == 'PROCESSING' %}
+                    <span class="processing-indicator">In Progress...</span>
+                  {% endif %}
+                </div>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
     </div>
   {% else %}
     <section class="empty-state">
       <span class="empty-icon" aria-hidden="true">✓</span>
-      <h2>No open alerts</h2>
-      <p>There are no alerts to investigate right now.</p>
+      <h2>No alerts match your criteria</h2>
+      <p>There are no campaign alerts matching the selected status or filters.</p>
+      <a class="button-link" href="/">Reset all filters</a>
     </section>
   {% endif %}
 {% endblock %}

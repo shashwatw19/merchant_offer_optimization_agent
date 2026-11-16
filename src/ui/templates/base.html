@@ -8,11 +8,18 @@
 </head>
 <body>
   <header class="site-header">
-    <a class="brand" href="/">Merchant Offer Agent</a>
-    <span class="header-caption">Evidence-led campaign investigations</span>
+    <div class="header-brand-group">
+      <a class="brand" href="/">Merchant Offer Optimization Agent</a>
+      <span class="header-caption">Evidence-Led Campaign Investigations</span>
+    </div>
+    <div class="header-badges">
+      <span class="engine-badge">Google ADK</span>
+      <span class="engine-badge bq-badge">BigQuery Connected</span>
+    </div>
   </header>
   <main class="page-container">
     {% block content %}{% endblock %}
   </main>
+  {% block scripts %}{% endblock %}
 </body>
 </html>
