@@ -15,6 +15,7 @@ from agents.tools.alert_store import (
     fetch_pending_alerts,
     update_alert_status,
 )
+from agents.tools.bigquery_tools import get_campaign_terms
 from agents.tools.report_tools import convert_json_report_to_markdown
 from core.config import get_config
 from core.logging import logger
@@ -43,6 +44,13 @@ async def process_alert_batch(
 
         if result["success"]:
             report = result["report"]
+            if not report.get("campaign_terms") and campaign_id:
+                try:
+                    terms_res = get_campaign_terms(campaign_id)
+                    if terms_res.get("success") and terms_res.get("terms"):
+                        report["campaign_terms"] = terms_res.get("terms")
+                except Exception:
+                    pass
             exec_id = result.get("execution_id") or report.get("execution_id") or f"exec_{alert_id}"
             summary = report.get("summary") or "Investigation completed successfully."
             logger.info(f"Alert {alert_id} investigation completed successfully (Exec: {exec_id}).")

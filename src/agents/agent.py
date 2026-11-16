@@ -1,11 +1,18 @@
 import asyncio
 import json
+import os
 import re
 import time
 from typing import Any, Dict, List, Optional
 from google.adk.agents import LlmAgent
 from google.adk.runners import InMemoryRunner
 from google.genai import types
+
+# Synchronize Gemini API keys from environment
+_API_KEY = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+if _API_KEY:
+    os.environ["GEMINI_API_KEY"] = _API_KEY
+    os.environ["GOOGLE_API_KEY"] = _API_KEY
 
 from core.time_utils import now_ist_str
 
@@ -114,6 +121,15 @@ async def process_alert_async(
     exec_id = execution_id or f"exec_{alert_id}_{int(start_time)}"
     session_id = f"session_alert_{alert_id}"
 
+    # Verify and synchronize API key from environment
+    api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+    if not api_key:
+        raise ValueError(
+            "No API key was provided. Please set GEMINI_API_KEY or GOOGLE_API_KEY in your system environment."
+        )
+    os.environ["GEMINI_API_KEY"] = api_key
+    os.environ["GOOGLE_API_KEY"] = api_key
+
     session = await get_or_create_session(USER_ID, session_id)
     prompt = format_investigation_prompt(alert)
 
@@ -203,6 +219,7 @@ async def process_alert_async(
                 "future_incremental_spend": None,
                 "human_approval_required": True,
                 "metrics": metrics,
+                "tool_calls": tool_calls_trace,
             }
         else:
             if not parsed_report.get("execution_id"):
@@ -210,6 +227,7 @@ async def process_alert_async(
             if not parsed_report.get("generated_at"):
                 parsed_report["generated_at"] = now_str
             parsed_report["metrics"] = metrics
+            parsed_report["tool_calls"] = tool_calls_trace
 
         tracer.write_trace(
             alert_id=alert_id,

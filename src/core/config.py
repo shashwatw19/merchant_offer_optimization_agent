@@ -49,6 +49,11 @@ def load_config(config_path: Optional[str] = None) -> ConfigDict:
     config = ConfigDict(data)
 
     # Optional environment variable overrides
+    if "GEMINI_API_KEY" in os.environ and "GOOGLE_API_KEY" not in os.environ:
+        os.environ["GOOGLE_API_KEY"] = os.environ["GEMINI_API_KEY"]
+    elif "GOOGLE_API_KEY" in os.environ and "GEMINI_API_KEY" not in os.environ:
+        os.environ["GEMINI_API_KEY"] = os.environ["GOOGLE_API_KEY"]
+
     if "GCP_PROJECT" in os.environ and "gcp" in config:
         config.gcp["project_id"] = os.environ["GCP_PROJECT"]
     if "BQ_LOCATION" in os.environ and "gcp" in config:

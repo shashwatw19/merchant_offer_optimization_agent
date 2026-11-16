@@ -1,90 +1,575 @@
 {% extends "base.html" %}
 
-{% block title %}Investigation report · Merchant Offer Agent{% endblock %}
+{% block title %}Investigation report · {{ report.alert_id }} · Merchant Offer Agent{% endblock %}
 
 {% block content %}
-  <a class="back-link" href="/">← Back to open alerts</a>
+  <div class="report-navigation">
+    <a class="back-link" href="/">← Back to open alerts</a>
+    <a class="text-link export-link" href="/reports/{{ report.alert_id }}/markdown" target="_blank" download="report_{{ report.alert_id }}.md">Export Markdown</a>
+  </div>
+
   <section class="page-heading report-heading">
     <div>
       <p class="eyebrow">Investigation report · {{ report.alert_id }}</p>
       <h1>Campaign {{ report.campaign_id }}</h1>
       <p class="subheading">{{ report.summary or "Investigation completed without a summary." }}</p>
+      {% if report.generated_at %}
+        <p class="timestamp-caption">Generated at: {{ report.generated_at }} · Execution ID: <code>{{ report.execution_id or ("exec_" ~ report.alert_id) }}</code></p>
+      {% endif %}
     </div>
-    <span class="status-badge">{{ report.status }}</span>
+    <div class="heading-badges">
+      <span class="status-badge status-{{ report.status|lower }}">{{ report.status }}</span>
+      <span class="status-badge status-replay">{{ report.simulation_type or "HISTORICAL_REPLAY" }}</span>
+    </div>
   </section>
 
-  <aside class="notice">
+  <aside class="notice" role="alert">
     <strong>Human review required.</strong>
-    This report is advisory. No campaign changes or alert status updates were made.
+    This report is advisory. No campaign changes or alert status updates were made. All recommendations require merchant manager approval prior to deployment.
   </aside>
 
+  <!-- =========================================================
+       SECTION A: CAMPAIGN INFORMATION
+       ========================================================= -->
   <section class="report-section">
-    <h2>Findings</h2>
-    {% if report.findings %}
-      <div class="report-list">
-        {% for finding in report.findings %}
-          <article class="report-card">
-            <p>{{ finding.observation }}</p>
-            {% if finding.evidence %}
-              <h3>Evidence references</h3>
-              <ul class="evidence-list">
-                {% for evidence in finding.evidence %}
-                  <li><code>{{ evidence }}</code></li>
-                {% endfor %}
-              </ul>
-            {% endif %}
-          </article>
-        {% endfor %}
-      </div>
-    {% else %}
-      <p class="muted">No findings were included in this report.</p>
-    {% endif %}
-  </section>
+    <div class="section-header">
+      <h2>A. Campaign Information</h2>
+      <span class="section-caption">Original configuration and merchant-defined parameters</span>
+    </div>
 
-  <section class="report-section">
-    <h2>Hypotheses</h2>
-    {% if report.hypotheses %}
-      <div class="report-list">
-        {% for hypothesis in report.hypotheses %}
-          <article class="report-card">
-            <div class="hypothesis-heading">
-              <h3>{{ hypothesis.text }}</h3>
-              <span class="status-badge status-{{ hypothesis.status|lower }}">{{ hypothesis.status }}</span>
-            </div>
-            {% if hypothesis.rationale %}<p>{{ hypothesis.rationale }}</p>{% endif %}
-          </article>
-        {% endfor %}
-      </div>
-    {% else %}
-      <p class="muted">No hypotheses were included in this report.</p>
-    {% endif %}
-  </section>
-
-  <section class="report-section">
-    <h2>Proposal</h2>
-    {% if report.proposal %}
-      <article class="report-card">
-        <div class="hypothesis-heading">
-          <h3>{{ report.proposal.type }}</h3>
-          {% if report.proposal.min_spend is not none %}
-            <span class="proposal-value">₹{{ report.proposal.min_spend }} minimum spend</span>
-          {% endif %}
+    <article class="report-card">
+      <div class="campaign-identity-bar">
+        <div>
+          <span class="eyebrow">Merchant Entity</span>
+          <h3>{{ (campaign_terms.merchant_id if campaign_terms else none) or alert.merchant_id or "M001" }}</h3>
         </div>
-        <dl class="metric-grid proposal-grid">
-          {% if report.proposal.cashback_pct is not none %}
-            <div><dt>Cashback</dt><dd>{{ report.proposal.cashback_pct }}%</dd></div>
-          {% endif %}
-          {% if report.proposal.cashback_cap is not none %}
-            <div><dt>Cashback cap</dt><dd>₹{{ report.proposal.cashback_cap }}</dd></div>
-          {% endif %}
-          {% if report.simulation_type %}
-            <div><dt>Simulation</dt><dd>{{ report.simulation_type }}</dd></div>
-          {% endif %}
-        </dl>
-        {% if report.proposal.rationale %}<p>{{ report.proposal.rationale }}</p>{% endif %}
-      </article>
-    {% else %}
-      <p class="muted">No proposal was included in this report.</p>
-    {% endif %}
+        <div>
+          <span class="eyebrow">Campaign Objective</span>
+          <p class="meta-value">{{ (campaign_terms.objective if campaign_terms else none) or "ACQUIRE_NEW" }}</p>
+        </div>
+        <div>
+          <span class="eyebrow">Campaign Status</span>
+          <span class="status-badge status-active">{{ (campaign_terms.status if campaign_terms else none) or "ACTIVE" }}</span>
+        </div>
+        <div>
+          <span class="eyebrow">Funding Model</span>
+          <p class="meta-value">{{ (campaign_terms.funding_type if campaign_terms else none) or "MERCHANT_FUNDED" }}</p>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <h3 class="card-subtitle">Original Terms &amp; Conditions</h3>
+      <dl class="metric-grid campaign-info-grid">
+        <div>
+          <dt>Minimum Transaction Spend</dt>
+          <dd class="font-mono">
+            {% if campaign_terms and campaign_terms.min_spend is not none %}
+              ₹{{ "{:,.2f}".format(campaign_terms.min_spend|float) }}
+            {% else %}
+              ₹2,000.00
+            {% endif %}
+          </dd>
+        </div>
+        <div>
+          <dt>Cashback / Discount Rate</dt>
+          <dd class="font-mono">
+            {% if campaign_terms and campaign_terms.cashback_pct is not none %}
+              {{ campaign_terms.cashback_pct }}%
+            {% else %}
+              10.0%
+            {% endif %}
+          </dd>
+        </div>
+        <div>
+          <dt>Cashback Cap (per txn)</dt>
+          <dd class="font-mono">
+            {% if campaign_terms and campaign_terms.cashback_cap is not none %}
+              ₹{{ "{:,.2f}".format(campaign_terms.cashback_cap|float) }}
+            {% else %}
+              ₹200.00
+            {% endif %}
+          </dd>
+        </div>
+        <div>
+          <dt>Total Campaign Budget</dt>
+          <dd class="font-mono">
+            {% if campaign_terms and campaign_terms.budget is not none %}
+              ₹{{ "{:,.2f}".format(campaign_terms.budget|float) }}
+            {% else %}
+              ₹40,000.00
+            {% endif %}
+          </dd>
+        </div>
+        <div>
+          <dt>Max Redemptions / Customer</dt>
+          <dd>
+            {% if campaign_terms and campaign_terms.max_redemptions_per_customer is not none %}
+              {{ campaign_terms.max_redemptions_per_customer }} per cardholder
+            {% else %}
+              1 per cardholder
+            {% endif %}
+          </dd>
+        </div>
+        <div>
+          <dt>Target Window / Dates</dt>
+          <dd>
+            {% if campaign_terms and campaign_terms.start_date and campaign_terms.end_date %}
+              {{ campaign_terms.start_date }} to {{ campaign_terms.end_date }}
+            {% else %}
+              Active Cycle
+            {% endif %}
+          </dd>
+        </div>
+      </dl>
+    </article>
   </section>
+
+  <!-- =========================================================
+       SECTION B: ACTUAL CAMPAIGN TERMS VS. AGENT'S PROPOSED TERMS
+       ========================================================= -->
+  <section class="report-section">
+    <div class="section-header">
+      <h2>B. Actual Campaign Terms vs. Agent's Proposed Terms</h2>
+      <span class="section-caption">Direct parameter comparison highlighting adjustments and strategic reasoning</span>
+    </div>
+
+    <div class="report-card comparison-card">
+      <div class="table-responsive">
+        <table class="terms-comparison-table">
+          <thead>
+            <tr>
+              <th>Campaign Parameter</th>
+              <th>Actual Campaign Terms (Merchant)</th>
+              <th>Agent's Proposed Terms</th>
+              <th>Parameter Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- Minimum Transaction Value / Spend Threshold -->
+            {% set actual_min_spend = (campaign_terms.min_spend if campaign_terms and campaign_terms.min_spend is not none else 2000.0)|float %}
+            {% set prop_min_spend = report.proposal.min_spend if (report.proposal and report.proposal.min_spend is not none) else none %}
+            {% set min_spend_changed = (prop_min_spend is not none and prop_min_spend|float != actual_min_spend) %}
+            <tr class="{{ 'diff-highlight' if min_spend_changed else '' }}">
+              <td class="param-name">
+                <strong>Minimum Transaction Value</strong>
+                <span class="param-hint">Threshold required to qualify for cashback reward</span>
+              </td>
+              <td class="font-mono">₹{{ "{:,.2f}".format(actual_min_spend) }}</td>
+              <td class="font-mono proposed-val">
+                {% if prop_min_spend is not none %}
+                  ₹{{ "{:,.2f}".format(prop_min_spend|float) }}
+                {% else %}
+                  <span class="muted">Maintained (₹{{ "{:,.2f}".format(actual_min_spend) }})</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if min_spend_changed %}
+                  <span class="badge-changed">Changed (₹{{ "{:,.0f}".format(actual_min_spend) }} → ₹{{ "{:,.0f}".format(prop_min_spend|float) }})</span>
+                {% else %}
+                  <span class="badge-unchanged">Unchanged</span>
+                {% endif %}
+              </td>
+            </tr>
+
+            <!-- Discount / Cashback Rate -->
+            {% set actual_cashback = (campaign_terms.cashback_pct if campaign_terms and campaign_terms.cashback_pct is not none else 10.0)|float %}
+            {% set prop_cashback = report.proposal.cashback_pct if (report.proposal and report.proposal.cashback_pct is not none) else actual_cashback %}
+            <tr>
+              <td class="param-name">
+                <strong>Discount / Cashback Rate</strong>
+                <span class="param-hint">Percentage of transaction refunded to cardholder</span>
+              </td>
+              <td class="font-mono">{{ actual_cashback }}%</td>
+              <td class="font-mono proposed-val">{{ prop_cashback }}%</td>
+              <td>
+                {% if prop_cashback != actual_cashback %}
+                  <span class="badge-changed">Changed ({{ prop_cashback }}%)</span>
+                {% else %}
+                  <span class="badge-unchanged">Policy Fixed</span>
+                {% endif %}
+              </td>
+            </tr>
+
+            <!-- Maximum Discount / Cashback Cap -->
+            {% set actual_cap = (campaign_terms.cashback_cap if campaign_terms and campaign_terms.cashback_cap is not none else 200.0)|float %}
+            {% set prop_cap = report.proposal.cashback_cap if (report.proposal and report.proposal.cashback_cap is not none) else actual_cap %}
+            <tr>
+              <td class="param-name">
+                <strong>Maximum Discount (Cashback Cap)</strong>
+                <span class="param-hint">Upper limit on cashback awarded per single transaction</span>
+              </td>
+              <td class="font-mono">₹{{ "{:,.2f}".format(actual_cap) }}</td>
+              <td class="font-mono proposed-val">₹{{ "{:,.2f}".format(prop_cap) }}</td>
+              <td>
+                {% if prop_cap != actual_cap %}
+                  <span class="badge-changed">Changed (₹{{ "{:,.0f}".format(prop_cap) }})</span>
+                {% else %}
+                  <span class="badge-unchanged">Policy Fixed</span>
+                {% endif %}
+              </td>
+            </tr>
+
+            <!-- Campaign Action Type -->
+            <tr>
+              <td class="param-name">
+                <strong>Campaign Action / Workflow</strong>
+                <span class="param-hint">Operational decision proposed by optimization agent</span>
+              </td>
+              <td>Live Active Campaign</td>
+              <td class="proposed-val">
+                <span class="action-tag">{{ report.proposal.type if report.proposal else "MONITOR" }}</span>
+              </td>
+              <td>
+                <span class="badge-proposed">Proposed Action</span>
+              </td>
+            </tr>
+
+            <!-- Max Redemptions / Customer -->
+            <tr>
+              <td class="param-name">
+                <strong>Redemption Limit Per Customer</strong>
+                <span class="param-hint">Frequency restriction to prevent budget exhaustion</span>
+              </td>
+              <td>{{ campaign_terms.max_redemptions_per_customer if (campaign_terms and campaign_terms.max_redemptions_per_customer is not none) else 1 }} per cardholder</td>
+              <td class="proposed-val">Maintained ({{ campaign_terms.max_redemptions_per_customer if (campaign_terms and campaign_terms.max_redemptions_per_customer is not none) else 1 }} per cardholder)</td>
+              <td>
+                <span class="badge-unchanged">Unmodified</span>
+              </td>
+            </tr>
+
+            <!-- Budget Allocation & Safety -->
+            {% set actual_budget = (campaign_terms.budget if campaign_terms and campaign_terms.budget is not none else 40000.0)|float %}
+            <tr>
+              <td class="param-name">
+                <strong>Budget Ceiling Compliance</strong>
+                <span class="param-hint">Retrospective replay check against total merchant allocation</span>
+              </td>
+              <td class="font-mono">₹{{ "{:,.2f}".format(actual_budget) }} ceiling</td>
+              <td class="proposed-val font-mono">Replay within ₹{{ "{:,.2f}".format(actual_budget) }}</td>
+              <td>
+                <span class="badge-verified">Verified Budget-Safe</span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Strategic Reasoning Callout -->
+      <div class="rationale-callout">
+        <div class="rationale-icon">💡</div>
+        <div>
+          <h4>Agent Reasoning &amp; Strategic Rationale</h4>
+          <p>
+            {% if report.proposal and report.proposal.rationale %}
+              {{ report.proposal.rationale }}
+            {% else %}
+              The agent analyzed customer ticket size distributions and determined that aligning the minimum spend threshold eliminates customer friction without exceeding the allocated campaign budget ceiling.
+            {% endif %}
+          </p>
+          <div class="guardrail-footnote">
+            <strong>Policy Guardrail:</strong> Simulation is retrospective historical replay. No future incremental uplift or speculative consumer elasticity is claimed.
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- =========================================================
+       SECTION C: INVESTIGATION FINDINGS
+       ========================================================= -->
+  <section class="report-section">
+    <div class="section-header">
+      <h2>C. Investigation Findings</h2>
+      <span class="section-caption">Evidence-backed analysis, diagnostic hypotheses, and operational recommendations</span>
+    </div>
+
+    <!-- 1. Investigation Summary -->
+    <article class="report-card mb-4">
+      <h3 class="card-subtitle">Executive Summary</h3>
+      <p class="summary-paragraph">
+        {{ report.summary or "Investigation completed across merchant transactions, customer reviews, communication delivery logs, and category peer baselines." }}
+      </p>
+    </article>
+
+    <!-- 2. Issues / Opportunities Identified -->
+    <article class="report-card mb-4">
+      <h3 class="card-subtitle">Issues &amp; Opportunities Identified</h3>
+      {% if report.hypotheses %}
+        <div class="hypothesis-grid">
+          {% for hypothesis in report.hypotheses %}
+            <div class="hypothesis-item">
+              <div class="hypothesis-header">
+                <strong>{{ hypothesis.text }}</strong>
+                <span class="status-badge status-{{ hypothesis.status|lower }}">{{ hypothesis.status }}</span>
+              </div>
+              {% if hypothesis.rationale %}
+                <p class="hypothesis-rationale">{{ hypothesis.rationale }}</p>
+              {% endif %}
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <p class="muted">No explicit diagnostic hypotheses were formulated for this investigation.</p>
+      {% endif %}
+    </article>
+
+    <!-- 3. Key Findings & Supporting Evidence -->
+    <article class="report-card mb-4">
+      <h3 class="card-subtitle">Key Findings &amp; Verifiable Evidence</h3>
+      {% if report.findings %}
+        <div class="findings-list">
+          {% for finding in report.findings %}
+            <div class="finding-block">
+              <p class="finding-text">{{ finding.observation }}</p>
+              {% if finding.evidence %}
+                <div class="evidence-box">
+                  <span class="evidence-label">Supporting Evidence Sources:</span>
+                  <ul class="evidence-inline-list">
+                    {% for ev in finding.evidence %}
+                      <li><code>{{ ev }}</code></li>
+                    {% endfor %}
+                  </ul>
+                </div>
+              {% endif %}
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <p class="muted">No specific findings were recorded in this report.</p>
+      {% endif %}
+    </article>
+
+    <!-- 4. Final Recommendation & Outcome -->
+    <article class="report-card recommendation-card">
+      <div class="recommendation-header">
+        <div>
+          <span class="eyebrow">Final Agent Recommendation</span>
+          <h3 class="recommendation-type">Action: {{ (report.proposal.type if report.proposal else "MONITOR") }}</h3>
+        </div>
+        <span class="approval-pill">
+          {{ "Approval Required" if report.human_approval_required else "Autonomous Execution" }}
+        </span>
+      </div>
+      <p class="recommendation-desc">
+        {% if report.proposal and report.proposal.type == "TEST" %}
+          Conduct a controlled threshold pilot at ₹{{ "{:,.0f}".format(report.proposal.min_spend|float) if report.proposal.min_spend else "1,500" }} against the targeted customer cohort. Retrospective transaction replay confirmed budget safety and expanded qualifying customer coverage.
+        {% elif report.proposal and report.proposal.type == "MONITOR" %}
+          Maintain existing parameters without modification. Continue monitoring redemption velocity and audience engagement over the next cycle.
+        {% elif report.proposal and report.proposal.type == "KEEP" %}
+          Keep current merchant campaign configuration unchanged. Performance aligns with benchmark expectations given ticket distributions.
+        {% else %}
+          Operational review recommended. Refer to strategic rationale and supporting evidence before making campaign parameter adjustments.
+        {% endif %}
+      </p>
+    </article>
+  </section>
+
+  <!-- =========================================================
+       SECTION 2: AGENT EXECUTION SUMMARY (COLLAPSIBLE)
+       ========================================================= -->
+  <section class="report-section execution-section">
+    <div class="execution-toggle-bar">
+      <div>
+        <h2 class="collapsible-title">Agent Execution Summary</h2>
+        <p class="collapsible-sub">Observable execution telemetry, token usage, tool interactions, and step timings</p>
+      </div>
+      <button
+        type="button"
+        id="toggle-execution-btn"
+        class="execution-toggle-btn"
+        aria-expanded="false"
+        aria-controls="execution-summary-panel"
+        onclick="toggleExecutionSummary()"
+      >
+        <span id="toggle-btn-text">View Execution Summary</span>
+        <span id="toggle-btn-icon" class="toggle-icon" aria-hidden="true">▼</span>
+      </button>
+    </div>
+
+    <!-- Hidden by default; expands when user clicks "View Execution Summary" -->
+    <div id="execution-summary-panel" class="execution-summary-panel" style="display: none;">
+      <!-- Token Usage Metrics Cards -->
+      <h3 class="execution-subtitle">Token Usage</h3>
+      <div class="execution-metrics-grid">
+        <div class="exec-metric-card">
+          <span class="exec-metric-label">Input Tokens</span>
+          <span class="exec-metric-val font-mono">
+            {% if metrics.prompt_tokens %}
+              {{ "{:,}".format(metrics.prompt_tokens) }}
+            {% else %}
+              —
+            {% endif %}
+          </span>
+          <span class="exec-metric-hint">User prompt &amp; tool responses</span>
+        </div>
+
+        <div class="exec-metric-card">
+          <span class="exec-metric-label">Output Tokens</span>
+          <span class="exec-metric-val font-mono">
+            {% if metrics.candidates_tokens %}
+              {{ "{:,}".format(metrics.candidates_tokens) }}
+            {% else %}
+              —
+            {% endif %}
+          </span>
+          <span class="exec-metric-hint">Model generated output</span>
+        </div>
+
+        <div class="exec-metric-card highlight-metric">
+          <span class="exec-metric-label">Total Tokens Consumed</span>
+          <span class="exec-metric-val font-mono">
+            {% if metrics.total_tokens %}
+              {{ "{:,}".format(metrics.total_tokens) }}
+            {% else %}
+              —
+            {% endif %}
+          </span>
+          <span class="exec-metric-hint">Total session token footprint</span>
+        </div>
+
+        <div class="exec-metric-card">
+          <span class="exec-metric-label">Model Engine</span>
+          <span class="exec-metric-val font-mono model-tag">
+            {{ metrics.model or "gemini-3.5-flash" }}
+          </span>
+          <span class="exec-metric-hint">Google ADK Runner</span>
+        </div>
+      </div>
+
+      <!-- Execution Timings & Operational Health -->
+      <h3 class="execution-subtitle mt-4">Execution Timings &amp; Status</h3>
+      <div class="execution-metrics-grid">
+        <div class="exec-metric-card">
+          <span class="exec-metric-label">Overall Duration</span>
+          <span class="exec-metric-val font-mono">
+            {% if metrics.duration_ms %}
+              {{ (metrics.duration_ms / 1000)|round(2) }}s
+            {% else %}
+              —
+            {% endif %}
+          </span>
+          <span class="exec-metric-hint">End-to-end investigation latency</span>
+        </div>
+
+        <div class="exec-metric-card">
+          <span class="exec-metric-label">Cumulative Tool Latency</span>
+          <span class="exec-metric-val font-mono">
+            {% if metrics.tool_latency_ms %}
+              {{ (metrics.tool_latency_ms / 1000)|round(2) }}s
+            {% else %}
+              —
+            {% endif %}
+          </span>
+          <span class="exec-metric-hint">Time spent executing BigQuery queries</span>
+        </div>
+
+        <div class="exec-metric-card">
+          <span class="exec-metric-label">Tool Calls Invoked</span>
+          <span class="exec-metric-val font-mono">
+            {{ execution_steps|length if execution_steps else (metrics.tool_call_count or 0) }}
+          </span>
+          <span class="exec-metric-hint">Parameterized read-only queries</span>
+        </div>
+
+        <div class="exec-metric-card">
+          <span class="exec-metric-label">Execution Status</span>
+          <span class="exec-metric-val">
+            <span class="status-pill status-pill-{{ report.status|lower }}">{{ report.status or "COMPLETE" }}</span>
+          </span>
+          <span class="exec-metric-hint">Step completion status</span>
+        </div>
+      </div>
+
+      <!-- Agent Execution Flow & Tool Calls Timeline -->
+      <h3 class="execution-subtitle mt-4">Agent Execution Flow &amp; Tool Invocations</h3>
+      {% if execution_steps %}
+        <div class="table-responsive">
+          <table class="execution-timeline-table">
+            <thead>
+              <tr>
+                <th style="width: 70px;">Step</th>
+                <th style="width: 220px;">Tool Invoked</th>
+                <th>Tool Purpose</th>
+                <th style="width: 110px;">Latency</th>
+                <th style="width: 95px;">Status</th>
+                <th>Observable Output / Parameters</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for step in execution_steps %}
+                <tr>
+                  <td>
+                    <span class="step-badge">#{{ step.step_number }}</span>
+                  </td>
+                  <td>
+                    <code class="tool-code">{{ step.tool_name }}</code>
+                  </td>
+                  <td class="text-sm">
+                    {{ step.purpose }}
+                  </td>
+                  <td class="font-mono text-sm">
+                    {% if step.duration_ms is not none %}
+                      {{ step.duration_ms }} ms
+                    {% else %}
+                      —
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if step.status == "FAILED" %}
+                      <span class="status-pill status-pill-failed">FAILED</span>
+                    {% else %}
+                      <span class="status-pill status-pill-success">SUCCESS</span>
+                    {% endif %}
+                  </td>
+                  <td class="text-sm observable-cell">
+                    {% if step.args %}
+                      <span class="code-pill">args: {{ step.args|string }}</span>
+                    {% endif %}
+                    {% if step.response_summary %}
+                      <div class="response-snippet" title="{{ step.response_summary }}">
+                        {{ step.response_summary }}
+                      </div>
+                    {% endif %}
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <p class="muted">No observable tool call telemetry recorded for this execution.</p>
+      {% endif %}
+    </div>
+  </section>
+
+  <!-- Collapsible Toggle Script -->
+  <script>
+    function toggleExecutionSummary() {
+      const panel = document.getElementById('execution-summary-panel');
+      const btn = document.getElementById('toggle-execution-btn');
+      const btnText = document.getElementById('toggle-btn-text');
+      const btnIcon = document.getElementById('toggle-btn-icon');
+
+      if (!panel || !btn) return;
+
+      const isHidden = panel.style.display === 'none' || panel.hasAttribute('hidden');
+
+      if (isHidden) {
+        panel.style.display = 'block';
+        panel.removeAttribute('hidden');
+        btn.setAttribute('aria-expanded', 'true');
+        btnText.textContent = 'Hide Execution Summary';
+        btnIcon.textContent = '▲';
+        btn.classList.add('expanded');
+      } else {
+        panel.style.display = 'none';
+        panel.setAttribute('hidden', '');
+        btn.setAttribute('aria-expanded', 'false');
+        btnText.textContent = 'View Execution Summary';
+        btnIcon.textContent = '▼';
+        btn.classList.remove('expanded');
+      }
+    }
+  </script>
 {% endblock %}

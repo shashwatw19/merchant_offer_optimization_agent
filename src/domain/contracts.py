@@ -68,3 +68,5 @@ class InvestigationReport(BaseModel):
     human_approval_required: bool = True
     summary: Optional[str] = None
     metrics: Optional[Dict[str, Any]] = None
+    campaign_terms: Optional[Dict[str, Any]] = None
+    tool_calls: Optional[List[Dict[str, Any]]] = None
