@@ -19,14 +19,13 @@
     </div>
     <div class="heading-badges">
       <span class="status-badge status-{{ report.status|lower }}">{{ report.status }}</span>
-      <span class="status-badge status-replay">{{ report.simulation_type or "HISTORICAL_REPLAY" }}</span>
     </div>
   </section>
 
-  <aside class="notice" role="alert">
-    <strong>Human review required.</strong>
-    This report is advisory. No campaign changes or alert status updates were made. All recommendations require merchant manager approval prior to deployment.
-  </aside>
+  <p class="notice" role="alert">
+    <!-- <strong>Human review required.</strong> -->
+    This report is advisory. No campaign changes or alert status updates were made. All recommendations require Human approval prior to deployment.
+  </p>
 
   <!-- =========================================================
        SECTION A: CAMPAIGN INFORMATION
@@ -34,7 +33,7 @@
   <section class="report-section">
     <div class="section-header">
       <h2>A. Campaign Information</h2>
-      <span class="section-caption">Original configuration and merchant-defined parameters</span>
+      <!-- <span class="section-caption">Original configuration and merchant-defined parameters</span> -->
     </div>
 
     <article class="report-card">
@@ -53,7 +52,8 @@
         </div>
         <div>
           <span class="eyebrow">Funding Model</span>
-          <p class="meta-value">{{ (campaign_terms.funding_type if campaign_terms else none) or "MERCHANT_FUNDED" }}</p>
+          <p class="meta-value">{{ ((campaign_terms.funding_type if campaign_terms else none) or "MERCHANT_FUNDED") | capitalize }}</p>
+
         </div>
       </div>
 
@@ -105,13 +105,13 @@
           <dt>Max Redemptions / Customer</dt>
           <dd>
             {% if campaign_terms and campaign_terms.max_redemptions_per_customer is not none %}
-              {{ campaign_terms.max_redemptions_per_customer }} per cardholder
+              {{ campaign_terms.max_redemptions_per_customer }} 
             {% else %}
-              1 per cardholder
+              1 
             {% endif %}
           </dd>
         </div>
-        <div>
+        <!-- <div>
           <dt>Target Window / Dates</dt>
           <dd>
             {% if campaign_terms and campaign_terms.start_date and campaign_terms.end_date %}
@@ -120,7 +120,7 @@
               Active Cycle
             {% endif %}
           </dd>
-        </div>
+        </div> -->
       </dl>
     </article>
   </section>
@@ -131,7 +131,7 @@
   <section class="report-section">
     <div class="section-header">
       <h2>B. Actual Campaign Terms vs. Agent's Proposed Terms</h2>
-      <span class="section-caption">Direct parameter comparison highlighting adjustments and strategic reasoning</span>
+      <!-- <span class="section-caption">Direct parameter comparison highlighting adjustments and strategic reasoning</span> -->
     </div>
 
     <div class="report-card comparison-card">
@@ -224,20 +224,6 @@
                 <span class="badge-proposed">Proposed Action</span>
               </td>
             </tr>
-
-            <!-- Max Redemptions / Customer -->
-            <tr>
-              <td class="param-name">
-                <strong>Redemption Limit Per Customer</strong>
-                <span class="param-hint">Frequency restriction to prevent budget exhaustion</span>
-              </td>
-              <td>{{ campaign_terms.max_redemptions_per_customer if (campaign_terms and campaign_terms.max_redemptions_per_customer is not none) else 1 }} per cardholder</td>
-              <td class="proposed-val">Maintained ({{ campaign_terms.max_redemptions_per_customer if (campaign_terms and campaign_terms.max_redemptions_per_customer is not none) else 1 }} per cardholder)</td>
-              <td>
-                <span class="badge-unchanged">Unmodified</span>
-              </td>
-            </tr>
-
             <!-- Budget Allocation & Safety -->
             {% set actual_budget = (campaign_terms.budget if campaign_terms and campaign_terms.budget is not none else 40000.0)|float %}
             <tr>
@@ -281,7 +267,7 @@
   <section class="report-section">
     <div class="section-header">
       <h2>C. Investigation Findings</h2>
-      <span class="section-caption">Evidence-backed analysis, diagnostic hypotheses, and operational recommendations</span>
+      <!-- <span class="section-caption">Evidence-backed analysis, diagnostic hypotheses, and operational recommendations</span> -->
     </div>
 
     <!-- 1. Investigation Summary -->
@@ -292,30 +278,7 @@
       </p>
     </article>
 
-    <!-- 2. Issues / Opportunities Identified -->
-    <article class="report-card mb-4">
-      <h3 class="card-subtitle">Issues &amp; Opportunities Identified</h3>
-      {% if report.hypotheses %}
-        <div class="hypothesis-grid">
-          {% for hypothesis in report.hypotheses %}
-            <div class="hypothesis-item">
-              <div class="hypothesis-header">
-                <strong>{{ hypothesis.text }}</strong>
-                <span class="status-badge status-{{ hypothesis.status|lower }}">{{ hypothesis.status }}</span>
-              </div>
-              {% if hypothesis.rationale %}
-                <p class="hypothesis-rationale">{{ hypothesis.rationale }}</p>
-              {% endif %}
-            </div>
-          {% endfor %}
-        </div>
-      {% else %}
-        <p class="muted">No explicit diagnostic hypotheses were formulated for this investigation.</p>
-      {% endif %}
-    </article>
-
-    <!-- 3. Key Findings & Supporting Evidence -->
-    <article class="report-card mb-4">
+     <article class="report-card mb-4">
       <h3 class="card-subtitle">Key Findings &amp; Verifiable Evidence</h3>
       {% if report.findings %}
         <div class="findings-list">
@@ -339,6 +302,30 @@
         <p class="muted">No specific findings were recorded in this report.</p>
       {% endif %}
     </article>
+    <!-- 2. Issues / Opportunities Identified -->
+    <article class="report-card mb-4">
+      <h3 class="card-subtitle">Root Cause Hypotheses & Diagnostic Evaluation</h3>
+      {% if report.hypotheses %}
+        <div class="hypothesis-grid">
+          {% for hypothesis in report.hypotheses %}
+            <div class="hypothesis-item">
+              <div class="hypothesis-header">
+                <strong>{{ hypothesis.text }}</strong>
+                <span class="status-badge status-{{ hypothesis.status|lower }}">{{ hypothesis.status }}</span>
+              </div>
+              {% if hypothesis.rationale %}
+                <p class="hypothesis-rationale">{{ hypothesis.rationale }}</p>
+              {% endif %}
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <p class="muted">No explicit diagnostic hypotheses were formulated for this investigation.</p>
+      {% endif %}
+    </article>
+
+    <!-- 3. Key Findings & Supporting Evidence -->
+   
 
     <!-- 4. Final Recommendation & Outcome -->
     <article class="report-card recommendation-card">

@@ -49,9 +49,15 @@
               <dd>{{ alert.created_at or "—" }}</dd>
             </div>
           </dl>
+          {% if alert.summary %}
+            <div class="alert-summary-callout">
+              <span class="eyebrow">Investigation Summary</span>
+              <p class="alert-summary-text">{{ alert.summary }}</p>
+            </div>
+          {% endif %}
           <div class="card-actions">
             <form method="post" action="{{ url_for('investigate_alert', alert_id=alert.alert_id) }}">
-              <button type="submit">Run investigation</button>
+              <button type="submit">{% if alert.has_report or alert.status == 'RESOLVED' %}Re-run investigation{% else %}Run investigation{% endif %}</button>
             </form>
             {% if alert.has_report %}
               <a class="text-link" href="{{ url_for('view_report', alert_id=alert.alert_id) }}">View saved report</a>

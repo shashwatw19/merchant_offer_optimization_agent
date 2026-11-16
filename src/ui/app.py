@@ -12,6 +12,7 @@ from google.cloud import bigquery
 from starlette.templating import Jinja2Templates
 
 from agents.agent import process_alert_async
+from agents.tools.alert_store import update_alert_status
 from agents.tools.bigquery_tools import get_campaign_terms
 from agents.tools.report_tools import convert_json_report_to_markdown
 from core.bigquery_client import execute_query
@@ -149,7 +150,7 @@ def _alerts_table() -> str:
     return f"`{config.gcp.project_id}.{config.gcp.gold_dataset}.alerts`"
 
 
-def _fetch_open_alerts(limit: int) -> List[Dict[str, Any]]:
+def _fetch_alerts(limit: int = 100) -> List[Dict[str, Any]]:
     sql = f"""
         SELECT
             alert_id,
@@ -162,7 +163,6 @@ def _fetch_open_alerts(limit: int) -> List[Dict[str, Any]]:
             status,
             created_at
         FROM {_alerts_table()}
-        WHERE status = 'OPEN'
         ORDER BY created_at DESC
         LIMIT @limit
     """
@@ -170,7 +170,7 @@ def _fetch_open_alerts(limit: int) -> List[Dict[str, Any]]:
     return execute_query(sql, parameters=parameters)
 
 
-_fetch_alerts = _fetch_open_alerts
+_fetch_open_alerts = _fetch_alerts
 
 
 def _fetch_alert_status_counts() -> Dict[str, int]:
@@ -190,7 +190,7 @@ def _fetch_open_alert(alert_id: str) -> Dict[str, Any]:
             status,
             created_at
         FROM {_alerts_table()}
-        WHERE alert_id = @alert_id AND status = 'OPEN'
+        WHERE alert_id = @alert_id
         LIMIT 1
     """
     parameters = [
@@ -200,7 +200,7 @@ def _fetch_open_alert(alert_id: str) -> Dict[str, Any]:
     if not rows:
         raise HTTPException(
             status_code=404,
-            detail="Open alert not found. It may have been removed or already processed.",
+            detail="Alert not found. It may have been removed or does not exist.",
         )
     return rows[0]
 
@@ -223,13 +223,23 @@ def dashboard(request: Request) -> HTMLResponse:
     try:
         alerts = _fetch_alerts(limit=100)
         for alert in alerts:
+            aid = str(alert.get("alert_id"))
             rule_details = RULE_DETAILS.get(
                 str(alert.get("rule_id")),
                 {"name": "Other alert", "meaning": "No description is available for this rule."},
             )
             alert["rule_name"] = rule_details["name"]
             alert["rule_meaning"] = rule_details["meaning"]
-            alert["has_report"] = _report_path(str(alert["alert_id"])).is_file()
+            report_file = _report_path(aid)
+            alert["has_report"] = report_file.is_file()
+
+            # Attach investigation summary if report is present
+            if alert["has_report"] and not alert.get("summary"):
+                try:
+                    rep_data = json.loads(report_file.read_text(encoding="utf-8"))
+                    alert["summary"] = rep_data.get("summary")
+                except Exception:
+                    pass
     except Exception:
         logger.exception("Could not load open alerts")
         return _render_error(
@@ -315,6 +325,14 @@ def investigate_alert(request: Request, alert_id: str) -> HTMLResponse:
             json.dumps(report_data, indent=2, default=str),
             encoding="utf-8",
         )
+
+        # Update BigQuery alert record with investigation summary
+        summary_text = report_data.get("summary") or "Investigation completed successfully."
+        try:
+            update_alert_status(alert_id=alert_id, status="RESOLVED", summary=summary_text)
+            logger.info(f"Recorded investigation summary for alert {alert_id} in BigQuery.")
+        except Exception as exc:
+            logger.warning(f"Could not update BigQuery alert summary: {exc}")
     except Exception:
         logger.exception("Could not complete or save investigation", extra={"alert_id": alert_id})
         return _render_error(
@@ -364,6 +382,23 @@ def view_report(request: Request, alert_id: str) -> HTMLResponse:
             logger.warning(f"Could not load campaign terms for {report.get('campaign_id')}: {exc}")
 
     metrics = report.get("metrics") or {}
+    if metrics:
+        prompt_t = metrics.get("prompt_tokens", 0) or 0
+        cand_t = metrics.get("candidates_tokens", 0) or 0
+        total_t = metrics.get("total_tokens", 0) or 0
+        tool_t = metrics.get("tool_use_tokens", 0) or 0
+        thought_t = metrics.get("thoughts_tokens", 0) or 0
+
+        # Auto-reconcile for legacy saved reports where tool_use wasn't separated from total
+        if not tool_t and not thought_t and total_t > (prompt_t + cand_t):
+            tool_t = total_t - (prompt_t + cand_t)
+            metrics["tool_use_tokens"] = tool_t
+
+        if "input_tokens" not in metrics:
+            metrics["input_tokens"] = prompt_t + tool_t
+        if "output_tokens" not in metrics:
+            metrics["output_tokens"] = cand_t + thought_t
+
     tool_calls = report.get("tool_calls") or []
     execution_steps = _build_execution_steps(tool_calls)
 

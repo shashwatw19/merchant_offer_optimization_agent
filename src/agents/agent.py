@@ -161,6 +161,8 @@ async def process_alert_async(
     candidates_tokens = 0
     total_tokens = 0
     cached_tokens = 0
+    tool_use_tokens = 0
+    thoughts_tokens = 0
 
     try:
         async for event in runner.run_async(
@@ -174,6 +176,8 @@ async def process_alert_async(
                 candidates_tokens = getattr(um, "candidates_token_count", candidates_tokens) or candidates_tokens
                 total_tokens = getattr(um, "total_token_count", total_tokens) or total_tokens
                 cached_tokens = getattr(um, "cached_content_token_count", cached_tokens) or cached_tokens
+                tool_use_tokens = getattr(um, "tool_use_prompt_token_count", tool_use_tokens) or tool_use_tokens
+                thoughts_tokens = getattr(um, "thoughts_token_count", thoughts_tokens) or thoughts_tokens
 
             if hasattr(event, "content") and event.content:
                 for part in event.content.parts:
@@ -195,7 +199,7 @@ async def process_alert_async(
                         tool_calls_trace.append({
                             "type": "response",
                             "name": fr.name,
-                            "response": str(fr.response)[:500],
+                            "response": str(fr.response)[:5000],
                             "duration_ms": tool_duration_ms,
                             "timestamp": time.time(),
                         })
@@ -204,12 +208,25 @@ async def process_alert_async(
 
         duration_ms = round((time.time() - start_time) * 1000, 2)
         total_tool_latency_ms = round(sum(t.get("duration_ms", 0) for t in tool_calls_trace if t.get("type") == "response"), 2)
+
+        
+        # Total Input = prompt (initial prompt + instructions) + tool_use (results from tool execution)
+        total_input_tokens = prompt_tokens + tool_use_tokens
+        # Total Output = candidates (generated text/report) + thoughts (reasoning)
+        total_output_tokens = candidates_tokens + thoughts_tokens
+        # If total_tokens from API is reported, preserve it; otherwise sum input + output
+        effective_total_tokens = total_tokens or (total_input_tokens + total_output_tokens)
+
         metrics = {
             "duration_ms": duration_ms,
             "tool_latency_ms": total_tool_latency_ms,
             "prompt_tokens": prompt_tokens,
+            "tool_use_tokens": tool_use_tokens,
+            "input_tokens": total_input_tokens,
             "candidates_tokens": candidates_tokens,
-            "total_tokens": total_tokens,
+            "thoughts_tokens": thoughts_tokens,
+            "output_tokens": total_output_tokens,
+            "total_tokens": effective_total_tokens,
             "cached_tokens": cached_tokens,
             "tool_call_count": len([t for t in tool_calls_trace if t.get("type") == "call"]),
             "model": MODEL_NAME,
@@ -276,12 +293,19 @@ async def process_alert_async(
     except Exception as exc:
         duration_ms = round((time.time() - start_time) * 1000, 2)
         logger.error(f"Investigation failed for alert {alert_id}: {exc}", extra={"alert_id": alert_id})
+        total_input_tokens = prompt_tokens + tool_use_tokens
+        total_output_tokens = candidates_tokens + thoughts_tokens
+        effective_total_tokens = total_tokens or (total_input_tokens + total_output_tokens)
         metrics = {
             "duration_ms": duration_ms,
             "tool_latency_ms": 0.0,
             "prompt_tokens": prompt_tokens,
+            "tool_use_tokens": tool_use_tokens,
+            "input_tokens": total_input_tokens,
             "candidates_tokens": candidates_tokens,
-            "total_tokens": total_tokens,
+            "thoughts_tokens": thoughts_tokens,
+            "output_tokens": total_output_tokens,
+            "total_tokens": effective_total_tokens,
             "cached_tokens": cached_tokens,
             "tool_call_count": len([t for t in tool_calls_trace if t.get("type") == "call"]),
             "model": MODEL_NAME,
