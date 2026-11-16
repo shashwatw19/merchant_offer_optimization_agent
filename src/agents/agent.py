@@ -8,14 +8,7 @@ from google.adk.agents import LlmAgent
 from google.adk.runners import InMemoryRunner
 from google.genai import types
 
-# Synchronize Gemini API keys from environment
-_API_KEY = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
-if _API_KEY:
-    os.environ["GEMINI_API_KEY"] = _API_KEY
-    os.environ["GOOGLE_API_KEY"] = _API_KEY
-
 from core.time_utils import now_ist_str
-
 from agents.tools.bigquery_tools import (
     get_campaign_terms,
     get_campaign_performance,
@@ -34,6 +27,25 @@ from domain.contracts import InvestigationReport
 from prompts import format_investigation_prompt, get_system_instruction
 
 config = get_config()
+
+# Configure GCP project and location identical to bigquery_client
+_gcp_project = getattr(getattr(config, "gcp", None), "project_id", "prj-imp-act-campaign")
+_gcp_location = getattr(getattr(config, "gcp", None), "location", "asia-south1")
+
+if "GOOGLE_CLOUD_PROJECT" not in os.environ and _gcp_project:
+    os.environ["GOOGLE_CLOUD_PROJECT"] = _gcp_project
+if "GCP_PROJECT" not in os.environ and _gcp_project:
+    os.environ["GCP_PROJECT"] = _gcp_project
+if "GOOGLE_CLOUD_LOCATION" not in os.environ and _gcp_location:
+    os.environ["GOOGLE_CLOUD_LOCATION"] = _gcp_location
+
+# If Gemini API key is present in environment, sync it; otherwise use Google Cloud Vertex AI like BigQuery client
+_API_KEY = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+if _API_KEY:
+    os.environ["GEMINI_API_KEY"] = _API_KEY
+    os.environ["GOOGLE_API_KEY"] = _API_KEY
+else:
+    os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "true"
 
 APP_NAME = "merchant_offer_app"
 USER_ID = "merchant_user"
@@ -121,14 +133,22 @@ async def process_alert_async(
     exec_id = execution_id or f"exec_{alert_id}_{int(start_time)}"
     session_id = f"session_alert_{alert_id}"
 
-    # Verify and synchronize API key from environment
+    # Configure GCP environment identical to bigquery_client
+    gcp_proj = getattr(getattr(config, "gcp", None), "project_id", "prj-imp-act-campaign")
+    gcp_loc = getattr(getattr(config, "gcp", None), "location", "asia-south1")
+    if gcp_proj:
+        os.environ["GOOGLE_CLOUD_PROJECT"] = gcp_proj
+        os.environ["GCP_PROJECT"] = gcp_proj
+    if gcp_loc:
+        os.environ["GOOGLE_CLOUD_LOCATION"] = gcp_loc
+
     api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
-    if not api_key:
-        raise ValueError(
-            "No API key was provided. Please set GEMINI_API_KEY or GOOGLE_API_KEY in your system environment."
-        )
-    os.environ["GEMINI_API_KEY"] = api_key
-    os.environ["GOOGLE_API_KEY"] = api_key
+    if api_key:
+        os.environ["GEMINI_API_KEY"] = api_key
+        os.environ["GOOGLE_API_KEY"] = api_key
+    else:
+        # Use Google Cloud Vertex AI credentials, identical to BigQuery client
+        os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "true"
 
     session = await get_or_create_session(USER_ID, session_id)
     prompt = format_investigation_prompt(alert)

@@ -5,12 +5,6 @@ import re
 from pathlib import Path
 from typing import Any, Dict, List
 
-# Ensure API key from system environment is synchronized across both standard variable names
-_ENV_API_KEY = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
-if _ENV_API_KEY:
-    os.environ["GEMINI_API_KEY"] = _ENV_API_KEY
-    os.environ["GOOGLE_API_KEY"] = _ENV_API_KEY
-
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -23,6 +17,26 @@ from agents.tools.report_tools import convert_json_report_to_markdown
 from core.bigquery_client import execute_query
 from core.config import get_config
 from core.logging import logger
+
+# Configure GCP project and location identical to bigquery_client
+_config = get_config()
+_gcp_project = getattr(getattr(_config, "gcp", None), "project_id", "prj-imp-act-campaign")
+_gcp_location = getattr(getattr(_config, "gcp", None), "location", "asia-south1")
+
+if "GOOGLE_CLOUD_PROJECT" not in os.environ and _gcp_project:
+    os.environ["GOOGLE_CLOUD_PROJECT"] = _gcp_project
+if "GCP_PROJECT" not in os.environ and _gcp_project:
+    os.environ["GCP_PROJECT"] = _gcp_project
+if "GOOGLE_CLOUD_LOCATION" not in os.environ and _gcp_location:
+    os.environ["GOOGLE_CLOUD_LOCATION"] = _gcp_location
+
+# If API key is present in environment, sync it; otherwise use Google Cloud Vertex AI credentials like BigQuery
+_ENV_API_KEY = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+if _ENV_API_KEY:
+    os.environ["GEMINI_API_KEY"] = _ENV_API_KEY
+    os.environ["GOOGLE_API_KEY"] = _ENV_API_KEY
+else:
+    os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "true"
 
 
 UI_DIR = Path(__file__).resolve().parent
@@ -236,17 +250,23 @@ def investigate_alert(request: Request, alert_id: str) -> HTMLResponse:
     if not ALERT_ID_PATTERN.fullmatch(alert_id):
         return _render_error(request, "Invalid alert ID.", status_code=400)
 
-    # Ensure API key is present in environment before running investigation
+    # Configure GCP environment identical to bigquery_client
+    cfg = get_config()
+    target_project = getattr(getattr(cfg, "gcp", None), "project_id", "prj-imp-act-campaign")
+    target_location = getattr(getattr(cfg, "gcp", None), "location", "asia-south1")
+    if target_project:
+        os.environ["GOOGLE_CLOUD_PROJECT"] = target_project
+        os.environ["GCP_PROJECT"] = target_project
+    if target_location:
+        os.environ["GOOGLE_CLOUD_LOCATION"] = target_location
+
     api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
-    if not api_key:
-        logger.error("Investigation requested without GEMINI_API_KEY or GOOGLE_API_KEY in environment", extra={"alert_id": alert_id})
-        return _render_error(
-            request,
-            "Gemini API key is not configured in the environment. Please set GEMINI_API_KEY or GOOGLE_API_KEY in your system environment.",
-            status_code=500,
-        )
-    os.environ["GEMINI_API_KEY"] = api_key
-    os.environ["GOOGLE_API_KEY"] = api_key
+    if api_key:
+        os.environ["GEMINI_API_KEY"] = api_key
+        os.environ["GOOGLE_API_KEY"] = api_key
+    else:
+        # Use Google Cloud Vertex AI credentials (ADC / IAM), identical to BigQuery client
+        os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "true"
 
     try:
         alert = _fetch_open_alert(alert_id)

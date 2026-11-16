@@ -54,10 +54,17 @@ def load_config(config_path: Optional[str] = None) -> ConfigDict:
     elif "GOOGLE_API_KEY" in os.environ and "GEMINI_API_KEY" not in os.environ:
         os.environ["GEMINI_API_KEY"] = os.environ["GOOGLE_API_KEY"]
 
-    if "GCP_PROJECT" in os.environ and "gcp" in config:
-        config.gcp["project_id"] = os.environ["GCP_PROJECT"]
-    if "BQ_LOCATION" in os.environ and "gcp" in config:
-        config.gcp["location"] = os.environ["BQ_LOCATION"]
+    proj_env = os.environ.get("GOOGLE_CLOUD_PROJECT") or os.environ.get("GCP_PROJECT")
+    if proj_env and "gcp" in config:
+        config.gcp["project_id"] = proj_env
+        os.environ["GOOGLE_CLOUD_PROJECT"] = proj_env
+        os.environ["GCP_PROJECT"] = proj_env
+
+    loc_env = os.environ.get("GOOGLE_CLOUD_LOCATION") or os.environ.get("BQ_LOCATION")
+    if loc_env and "gcp" in config:
+        config.gcp["location"] = loc_env
+        os.environ["GOOGLE_CLOUD_LOCATION"] = loc_env
+        os.environ["BQ_LOCATION"] = loc_env
     if "GEMINI_MODEL" in os.environ and "agent" in config:
         config.agent["model"] = os.environ["GEMINI_MODEL"]
     if "GCS_BUCKET" in os.environ and "storage" in config:
