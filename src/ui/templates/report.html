@@ -17,9 +17,7 @@
         <p class="timestamp-caption">Generated at: {{ report.generated_at }} · Execution ID: <code>{{ report.execution_id or ("exec_" ~ report.alert_id) }}</code></p>
       {% endif %}
     </div>
-    <div class="heading-badges">
-      <span class="status-badge status-{{ report.status|lower }}">{{ report.status }}</span>
-    </div>
+    
   </section>
 
   <p class="notice" role="alert">
@@ -40,7 +38,7 @@
       <div class="campaign-identity-bar">
         <div>
           <span class="eyebrow">Merchant Entity</span>
-          <h3>{{ (campaign_terms.merchant_id if campaign_terms else none) or alert.merchant_id or "M001" }}</h3>
+          <h3>{{ (campaign_terms.merchant_id if campaign_terms else none) or (alert.merchant_id if alert is defined and alert else none) or "M001" }}</h3>
         </div>
         <div>
           <span class="eyebrow">Campaign Objective</span>
@@ -111,16 +109,18 @@
             {% endif %}
           </dd>
         </div>
-        <!-- <div>
-          <dt>Target Window / Dates</dt>
-          <dd>
+        <div>
+          <dt>Campaign Target Window</dt>
+          <dd class="font-mono">
             {% if campaign_terms and campaign_terms.start_date and campaign_terms.end_date %}
               {{ campaign_terms.start_date }} to {{ campaign_terms.end_date }}
+            {% elif timeline and timeline.start_date and timeline.end_date %}
+              {{ timeline.start_date }} to {{ timeline.end_date }}
             {% else %}
               Active Cycle
             {% endif %}
           </dd>
-        </div> -->
+        </div>
       </dl>
     </article>
   </section>

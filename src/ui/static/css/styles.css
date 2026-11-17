@@ -369,6 +369,80 @@ pre,
   padding: 1.35rem 1.5rem;
 }
 
+/* Alert Card Top & Top-Right Metadata */
+.alert-card-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1.25rem;
+  margin-bottom: 0.85rem;
+}
+
+.alert-title-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  text-align: right;
+  gap: 0.35rem;
+  flex-shrink: 0;
+}
+
+.alert-title-meta h3 {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--ink);
+  letter-spacing: -0.015em;
+}
+
+.meta-badge-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.card-timeline-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.78rem;
+  font-family: var(--font-mono);
+  font-weight: 500;
+  color: var(--ink-secondary);
+  background: var(--background);
+  border: 1px solid var(--line-strong);
+  padding: 0.25rem 0.6rem;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.card-timeline-badge .timeline-icon {
+  font-size: 0.8rem;
+}
+
+.card-timeline-badge .timeline-days {
+  color: var(--muted);
+  font-weight: 400;
+  margin-left: 0.15rem;
+}
+
+@media (max-width: 640px) {
+  .alert-card-top {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .alert-title-meta {
+    align-items: flex-start;
+    text-align: left;
+    width: 100%;
+  }
+  .meta-badge-row {
+    justify-content: flex-start;
+  }
+}
+
 .card-subtitle {
   margin: 0 0 0.85rem;
   font-size: 1.05rem;
@@ -453,6 +527,126 @@ pre,
 
 .campaign-info-grid dd {
   font-weight: 500;
+}
+
+.metric-title {
+  display: block;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--ink);
+  line-height: 1.25;
+}
+
+.metric-sub-desc {
+  display: block;
+  margin-top: 0.2rem;
+  font-size: 0.74rem;
+  font-weight: 400;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+/* =========================================================
+   TOOLTIP STYLING FOR METRIC GRID (OBSERVED & THRESHOLD)
+   ========================================================= */
+
+.metric-col.has-tooltip {
+  position: relative;
+  cursor: help;
+  outline: none;
+}
+
+.metric-header-with-tip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.info-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: var(--line);
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 1;
+  transition: all 0.15s ease;
+}
+
+.has-tooltip:hover .info-icon,
+.has-tooltip:focus .info-icon,
+.has-tooltip:focus-within .info-icon {
+  background: var(--accent-light);
+  color: var(--accent);
+  border-color: var(--accent-border);
+}
+
+.tooltip-bubble {
+  visibility: hidden;
+  opacity: 0;
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  width: max-content;
+  max-width: 290px;
+  background: #0f172a;
+  color: #f8fafc;
+  padding: 0.5rem 0.7rem;
+  border-radius: 6px;
+  font-size: 0.76rem;
+  line-height: 1.35;
+  box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.25), 0 8px 10px -6px rgba(15, 23, 42, 0.2);
+  z-index: 100;
+  transition: opacity 0.18s cubic-bezier(0.16, 1, 0.3, 1), transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.18s;
+  pointer-events: none;
+}
+
+.tooltip-bubble strong {
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.tooltip-bubble .tooltip-title {
+  display: block;
+  font-weight: 700;
+  color: #93c5fd;
+  margin-bottom: 0.2rem;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.tooltip-bubble .tooltip-desc {
+  display: block;
+  color: #ffffff;
+  font-size: 0.82rem;
+  font-weight: 500;
+}
+
+/* Downward arrow pointer */
+.tooltip-bubble::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  margin-left: -5px;
+  border-width: 5px;
+  border-style: solid;
+  border-color: #0f172a transparent transparent transparent;
+}
+
+/* Hover and focus triggers */
+.has-tooltip:hover .tooltip-bubble,
+.has-tooltip:focus .tooltip-bubble,
+.has-tooltip:focus-within .tooltip-bubble {
+  visibility: visible;
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
 }
 
 /* =========================================================

@@ -9,7 +9,7 @@
       <h1>Open alerts</h1>
       <p class="subheading">Review campaign signals and run an evidence-backed agent investigation.</p>
     </div>
-    <span class="count-badge">{{ alerts|length }} open</span>
+   
   </section>
 
   {% if alerts %}
@@ -23,7 +23,22 @@
               <p class="rule-meaning">{{ alert.rule_meaning }}</p>
             </div>
             <div class="alert-title-meta">
-              <span class="status-badge">{{ alert.status }}</span>
+              <div class="meta-badge-row">
+                <span class="status-badge">{{ alert.status }}</span>
+                {% set s_date = alert.timeline.start_date if (alert.timeline and alert.timeline.start_date and alert.timeline.start_date != 'Campaign Start') else alert.start_date %}
+                {% set e_date = alert.timeline.end_date if (alert.timeline and alert.timeline.end_date and alert.timeline.end_date != 'Campaign End') else alert.end_date %}
+                <span class="card-timeline-badge" title="Campaign Timeline">
+                
+                  {% if s_date and e_date %}
+                    <span>{{ s_date }} to {{ e_date }}</span>
+                    {% if alert.timeline and alert.timeline.total_days %}
+                     
+                    {% endif %}
+                  {% else %}
+                    <span>Active Cycle</span>
+                  {% endif %}
+                </span>
+              </div>
               <h3>Campaign {{ alert.campaign_id }}</h3>
             </div>
           </div>
@@ -32,17 +47,47 @@
               <dt>Merchant</dt>
               <dd>{{ alert.merchant_id or "—" }}</dd>
             </div>
-            <div>
-              <dt>Metric</dt>
-              <dd>{{ alert.metric_name or "—" }}</dd>
+            <div class="metric-col has-tooltip" tabindex="0">
+              <dt class="metric-header-with-tip">
+                <span>Observed</span>
+                <span class="info-icon" aria-hidden="true">ⓘ</span>
+                <span class="tooltip-bubble" role="tooltip">
+                  <span class="tooltip-title">Observed Timeline</span>
+                  <span class="tooltip-desc font-mono">
+                    {% if alert.rule_id == 'R2' and alert.timeline and alert.timeline.p2_label %}
+                      {{ alert.timeline.p2_label }} 
+                    {% elif alert.timeline and alert.timeline.start_date and alert.timeline.end_date and alert.timeline.start_date != 'Campaign Start' %}
+                      {{ alert.timeline.start_date }} to {{ alert.timeline.end_date }}
+                    {% else %}
+                      Active Evaluation Cycle
+                    {% endif %}
+                  </span>
+                </span>
+              </dt>
+              <dd class="font-mono">
+                {{ alert.metric_value if alert.metric_value is not none else "—" }}{% if alert.metric_value is not none and alert.metric_name and ('rate' in alert.metric_name or 'pct' in alert.metric_name or 'share' in alert.metric_name) %}%{% endif %}
+              </dd>
             </div>
-            <div>
-              <dt>Observed</dt>
-              <dd>{{ alert.metric_value if alert.metric_value is not none else "—" }}</dd>
-            </div>
-            <div>
-              <dt>Threshold</dt>
-              <dd>{{ alert.threshold_value if alert.threshold_value is not none else "—" }}</dd>
+            <div class="metric-col has-tooltip" tabindex="0">
+              <dt class="metric-header-with-tip">
+                <span>Threshold</span>
+                <span class="info-icon" aria-hidden="true">ⓘ</span>
+                <span class="tooltip-bubble" role="tooltip">
+                  <span class="tooltip-title">Threshold Timeline</span>
+                  <span class="tooltip-desc font-mono">
+                    {% if alert.rule_id == 'R2' and alert.timeline and alert.timeline.p1_label %}
+                      {{ alert.timeline.p1_label }}
+                    {% elif alert.timeline and alert.timeline.start_date and alert.timeline.end_date and alert.timeline.start_date != 'Campaign Start' %}
+                      {{ alert.timeline.start_date }} to {{ alert.timeline.end_date }} 
+                    {% else %}
+                      Campaign Policy Baseline
+                    {% endif %}
+                  </span>
+                </span>
+              </dt>
+              <dd class="font-mono">
+                {{ alert.threshold_value if alert.threshold_value is not none else "—" }}{% if alert.threshold_value is not none and alert.metric_name and ('rate' in alert.metric_name or 'pct' in alert.metric_name or 'share' in alert.metric_name) %}%{% endif %}
+              </dd>
             </div>
             <div>
               <dt>Created</dt>
