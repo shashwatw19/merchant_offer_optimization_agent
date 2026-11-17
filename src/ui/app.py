@@ -91,16 +91,17 @@ TOOL_PURPOSES = {
 
 
 def _build_execution_steps(tool_calls: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    steps = []
-    current_step = None
+    steps: List[Dict[str, Any]] = []
+    # Map of tool_name -> list of uncompleted step dicts (FIFO queue for parallel tool calling)
+    pending_calls: Dict[str, List[Dict[str, Any]]] = {}
     step_num = 1
+
     for item in tool_calls:
         item_type = item.get("type")
         name = item.get("name", "tool")
+
         if item_type == "call":
-            if current_step:
-                steps.append(current_step)
-            current_step = {
+            step = {
                 "step_number": step_num,
                 "tool_name": name,
                 "purpose": TOOL_PURPOSES.get(name, "Execute investigation tool query"),
@@ -109,18 +110,23 @@ def _build_execution_steps(tool_calls: List[Dict[str, Any]]) -> List[Dict[str, A
                 "status": "SUCCESS",
                 "response_summary": "",
             }
+            steps.append(step)
+            pending_calls.setdefault(name, []).append(step)
             step_num += 1
+
         elif item_type == "response":
-            if current_step and current_step["tool_name"] == name:
-                current_step["duration_ms"] = item.get("duration_ms")
+            matching_steps = pending_calls.get(name, [])
+            if matching_steps:
+                # Match with the oldest open call for this tool (FIFO)
+                step = matching_steps.pop(0)
+                step["duration_ms"] = item.get("duration_ms")
                 resp_str = str(item.get("response", ""))
                 is_failed = "'success': False" in resp_str or '"success": false' in resp_str
                 if is_failed:
-                    current_step["status"] = "FAILED"
-                current_step["response_summary"] = resp_str[:250]
-                steps.append(current_step)
-                current_step = None
+                    step["status"] = "FAILED"
+                step["response_summary"] = resp_str[:250]
             else:
+                # Fallback for an unexpected response with no preceding call
                 resp_str = str(item.get("response", ""))
                 is_failed = "'success': False" in resp_str or '"success": false' in resp_str
                 steps.append({
@@ -133,7 +139,9 @@ def _build_execution_steps(tool_calls: List[Dict[str, Any]]) -> List[Dict[str, A
                     "response_summary": resp_str[:250],
                 })
                 step_num += 1
+
         else:
+            # Standalone or pre-merged step format
             steps.append({
                 "step_number": step_num,
                 "tool_name": name,
@@ -144,8 +152,7 @@ def _build_execution_steps(tool_calls: List[Dict[str, Any]]) -> List[Dict[str, A
                 "response_summary": str(item.get("response") or item.get("response_summary", ""))[:250],
             })
             step_num += 1
-    if current_step:
-        steps.append(current_step)
+
     return steps
 
 

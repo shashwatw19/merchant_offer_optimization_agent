@@ -156,7 +156,7 @@ async def process_alert_async(
     content = types.Content(role="user", parts=[types.Part(text=prompt)])
     final_text = ""
     tool_calls_trace: List[Dict[str, Any]] = []
-    tool_start_times: Dict[str, float] = {}
+    tool_start_times: Dict[str, List[float]] = {}
     prompt_tokens = 0
     candidates_tokens = 0
     total_tokens = 0
@@ -183,7 +183,7 @@ async def process_alert_async(
                 for part in event.content.parts:
                     if getattr(part, "function_call", None):
                         fc = part.function_call
-                        tool_start_times[fc.name] = time.time()
+                        tool_start_times.setdefault(fc.name, []).append(time.time())
                         logger.info(f"Tool called: {fc.name}", extra={"alert_id": alert_id, "tool_name": fc.name})
                         tool_calls_trace.append({
                             "type": "call",
@@ -193,7 +193,7 @@ async def process_alert_async(
                         })
                     elif getattr(part, "function_response", None):
                         fr = part.function_response
-                        start_t = tool_start_times.get(fr.name, time.time())
+                        start_t = tool_start_times[fr.name].pop(0) if tool_start_times.get(fr.name) else time.time()
                         tool_duration_ms = round((time.time() - start_t) * 1000, 2)
                         logger.info(f"Tool responded: {fr.name} ({tool_duration_ms}ms)", extra={"alert_id": alert_id, "tool_name": fr.name})
                         tool_calls_trace.append({
