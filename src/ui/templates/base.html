@@ -7,7 +7,7 @@
   <title>{% block title %}Merchant Offer Agent{% endblock %}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{{ url_for('static', path='/css/styles.css') }}">
 </head>
 <body>
@@ -44,7 +44,7 @@
       </a>
     </nav>
   </header>
-  <main class="page-container">
+  <main class="page-container {% if active_page == 'admin' %}admin-container{% endif %}">
     {% block content %}{% endblock %}
   </main>
   <footer class="site-footer">
