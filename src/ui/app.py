@@ -6,13 +6,14 @@ import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, Query
 from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from google.cloud import bigquery
 from starlette.templating import Jinja2Templates
 
 from agents.agent import process_alert_async
+from agents.runner import ensure_agent_runs_table, persist_agent_run
 from agents.tools.alert_store import update_alert_status
 from agents.tools.bigquery_tools import get_campaign_terms
 from agents.tools.report_tools import convert_json_report_to_markdown
@@ -92,7 +93,6 @@ TOOL_PURPOSES = {
 
 def _build_execution_steps(tool_calls: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     steps: List[Dict[str, Any]] = []
-    # Map of tool_name -> list of uncompleted step dicts (FIFO queue for parallel tool calling)
     pending_calls: Dict[str, List[Dict[str, Any]]] = {}
     step_num = 1
 
@@ -117,7 +117,6 @@ def _build_execution_steps(tool_calls: List[Dict[str, Any]]) -> List[Dict[str, A
         elif item_type == "response":
             matching_steps = pending_calls.get(name, [])
             if matching_steps:
-                # Match with the oldest open call for this tool (FIFO)
                 step = matching_steps.pop(0)
                 step["duration_ms"] = item.get("duration_ms")
                 resp_str = str(item.get("response", ""))
@@ -126,7 +125,6 @@ def _build_execution_steps(tool_calls: List[Dict[str, Any]]) -> List[Dict[str, A
                     step["status"] = "FAILED"
                 step["response_summary"] = resp_str[:250]
             else:
-                # Fallback for an unexpected response with no preceding call
                 resp_str = str(item.get("response", ""))
                 is_failed = "'success': False" in resp_str or '"success": false' in resp_str
                 steps.append({
@@ -141,7 +139,6 @@ def _build_execution_steps(tool_calls: List[Dict[str, Any]]) -> List[Dict[str, A
                 step_num += 1
 
         else:
-            # Standalone or pre-merged step format
             steps.append({
                 "step_number": step_num,
                 "tool_name": name,
@@ -174,6 +171,36 @@ def _report_path(alert_id: str) -> Path:
 def _alerts_table() -> str:
     config = get_config()
     return f"`{config.gcp.project_id}.{config.gcp.gold_dataset}.alerts`"
+
+
+def _agent_runs_table() -> str:
+    cfg = get_config()
+    proj = getattr(getattr(cfg, "gcp", None), "project_id", "prj-imp-act-campaign")
+    gold = getattr(getattr(cfg, "gcp", None), "gold_dataset", "offers_gold")
+    default_table = f"{proj}.{gold}.agent_runs"
+    table_id = os.environ.get("AGENT_RUNS_TABLE", default_table)
+    if "." not in table_id:
+        table_id = f"{gold}.{table_id}"
+    return table_id
+
+
+_RUN_KEY_SQL = """COALESCE(run_id, CONCAT('legacy-', TO_HEX(SHA256(
+    CONCAT(alert_id, '|', CAST(run_time AS STRING), '|', CAST(run_number AS STRING))
+))))"""
+
+
+def _admin_json(value: Any, expected_type: type) -> Any:
+    if value is None:
+        return None
+    if isinstance(value, expected_type):
+        return value
+    try:
+        decoded = json.loads(value)
+        if decoded is not None and not isinstance(decoded, expected_type):
+            return decoded
+        return decoded
+    except (ValueError, TypeError):
+        return None
 
 
 def _compute_campaign_timeline(start_date_val: Any, end_date_val: Any) -> Dict[str, Any]:
@@ -444,8 +471,122 @@ def dashboard(request: Request) -> HTMLResponse:
     return templates.TemplateResponse(
         request,
         "dashboard.html",
-        {"alerts": alerts},
+        {"alerts": alerts, "active_page": "alerts"},
     )
+
+
+@app.get("/admin", response_class=HTMLResponse, name="admin_panel")
+def admin_panel(request: Request) -> HTMLResponse:
+    """Renders the execution observability admin panel."""
+    return templates.TemplateResponse(
+        request,
+        "admin.html",
+        {"active_page": "admin"},
+    )
+
+
+@app.get("/api/admin/investigations")
+def get_admin_investigations(
+    limit: int = Query(25, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    alert_id: str = Query("", max_length=128),
+):
+    """Lists every investigation run, including failed and historical runs."""
+    table_id = _agent_runs_table()
+    query = f"""
+    SELECT {_RUN_KEY_SQL} AS run_key, alert_id, campaign_id, run_number, recommendation, confidence,
+      COALESCE(run_status, 'not_recorded') AS run_status,
+      FORMAT_TIMESTAMP('%Y-%m-%d %H:%M:%S IST', run_time, 'Asia/Kolkata') AS run_time_ist,
+      duration_ms,
+      TO_JSON_STRING(JSON_REMOVE(execution_metrics, '$.model_calls')) AS metrics_json
+    FROM `{table_id}`
+    WHERE @alert_id = '' 
+       OR STRPOS(LOWER(alert_id), LOWER(@alert_id)) > 0
+       OR STRPOS(LOWER(COALESCE(campaign_id, '')), LOWER(@alert_id)) > 0
+    ORDER BY run_time DESC, run_key DESC
+    LIMIT @limit OFFSET @offset
+    """
+    params = [
+        bigquery.ScalarQueryParameter("limit", "INT64", limit + 1),
+        bigquery.ScalarQueryParameter("offset", "INT64", offset),
+        bigquery.ScalarQueryParameter("alert_id", "STRING", alert_id.strip()),
+    ]
+    try:
+        ensure_agent_runs_table()
+        rows = execute_query(query, parameters=params)
+    except Exception as exc:
+        logger.warning(f"Could not load Admin Panel investigations from BigQuery ({exc}).")
+        rows = []
+
+    runs = []
+    for row in rows[:limit]:
+        run = dict(row)
+        run["execution_metrics"] = _admin_json(run.pop("metrics_json", None), dict)
+        runs.append(run)
+    return {
+        "investigations": runs,
+        "next_offset": offset + limit if len(rows) > limit else None,
+    }
+
+
+@app.get("/api/admin/batch-averages")
+def get_admin_batch_averages(limit: int = Query(100, ge=1, le=500)):
+    """Returns average token usage and duration grouped by investigation batch."""
+    table_id = _agent_runs_table()
+    total_tokens = "SAFE_CAST(JSON_VALUE(execution_metrics, '$.token_totals.total_tokens') AS FLOAT64)"
+    query = f"""
+    SELECT
+      batch_id,
+      COUNT(*) AS investigation_count,
+      COUNTIF({total_tokens} IS NOT NULL) AS token_sample_count,
+      AVG({total_tokens}) AS avg_total_tokens,
+      COUNTIF(duration_ms IS NOT NULL) AS duration_sample_count,
+      AVG(duration_ms) AS avg_duration_ms
+    FROM `{table_id}`
+    GROUP BY batch_id
+    ORDER BY MAX(run_time) DESC, batch_id DESC
+    LIMIT @limit
+    """
+    try:
+        ensure_agent_runs_table()
+        rows = execute_query(
+            query,
+            parameters=[bigquery.ScalarQueryParameter("limit", "INT64", limit)],
+        )
+    except Exception as exc:
+        logger.warning(f"Could not load Admin Panel batch averages from BigQuery ({exc}).")
+        rows = []
+    return {"batches": [dict(row) for row in rows]}
+
+
+@app.get("/api/admin/investigations/{run_key}")
+def get_admin_investigation(run_key: str):
+    """Returns per-model-request usage and per-tool timings for one run."""
+    table_id = _agent_runs_table()
+    query = f"""
+    SELECT {_RUN_KEY_SQL} AS run_key, alert_id, campaign_id, run_number, recommendation, confidence,
+      COALESCE(run_status, 'not_recorded') AS run_status,
+      FORMAT_TIMESTAMP('%Y-%m-%d %H:%M:%S IST', run_time, 'Asia/Kolkata') AS run_time_ist,
+      duration_ms, TO_JSON_STRING(execution_metrics) AS metrics_json,
+      TO_JSON_STRING(tool_calls) AS tool_calls_json
+    FROM `{table_id}`
+    WHERE {_RUN_KEY_SQL} = @run_key
+    LIMIT 1
+    """
+    try:
+        ensure_agent_runs_table()
+        rows = execute_query(
+            query, parameters=[bigquery.ScalarQueryParameter("run_key", "STRING", run_key)],
+        )
+    except Exception as exc:
+        logger.exception(f"Could not load Admin Panel investigation {run_key}: {exc}")
+        raise HTTPException(status_code=503, detail="Unable to load investigation metrics.")
+    if not rows:
+        raise HTTPException(status_code=404, detail="Investigation run not found.")
+    run = dict(rows[0])
+    run["execution_metrics"] = _admin_json(run.pop("metrics_json", None), dict)
+    run["tool_calls"] = _admin_json(run.pop("tool_calls_json", None), list)
+    return run
 
 
 @app.post("/alerts/{alert_id}/investigate", name="investigate_alert")
@@ -453,7 +594,6 @@ def investigate_alert(request: Request, alert_id: str) -> HTMLResponse:
     if not ALERT_ID_PATTERN.fullmatch(alert_id):
         return _render_error(request, "Invalid alert ID.", status_code=400)
 
-    # Configure GCP environment identical to bigquery_client
     cfg = get_config()
     target_project = getattr(getattr(cfg, "gcp", None), "project_id", "prj-imp-act-campaign")
     target_location = getattr(getattr(cfg, "gcp", None), "location", "asia-south1")
@@ -468,7 +608,6 @@ def investigate_alert(request: Request, alert_id: str) -> HTMLResponse:
         os.environ["GEMINI_API_KEY"] = api_key
         os.environ["GOOGLE_API_KEY"] = api_key
     else:
-        # Use Google Cloud Vertex AI credentials (ADC / IAM), identical to BigQuery client
         os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "true"
 
     try:
@@ -544,7 +683,7 @@ def investigate_alert(request: Request, alert_id: str) -> HTMLResponse:
         except Exception as exc:
             logger.warning(f"Could not upload report to GCS (falling back to local storage): {exc}")
 
-        # Save local JSON report (including any GCS URIs recorded)
+        # Save local JSON report
         report_path.write_text(
             json.dumps(report_data, indent=2, default=str),
             encoding="utf-8",
@@ -613,7 +752,6 @@ def view_report(request: Request, alert_id: str) -> HTMLResponse:
         tool_t = metrics.get("tool_use_tokens", 0) or 0
         thought_t = metrics.get("thoughts_tokens", 0) or 0
 
-        # Auto-reconcile for legacy saved reports where tool_use wasn't separated from total
         if not tool_t and not thought_t and total_t > (prompt_t + cand_t):
             tool_t = total_t - (prompt_t + cand_t)
             metrics["tool_use_tokens"] = tool_t
@@ -626,7 +764,6 @@ def view_report(request: Request, alert_id: str) -> HTMLResponse:
     tool_calls = report.get("tool_calls") or []
     execution_steps = _build_execution_steps(tool_calls)
 
-    # Derive timeline and alert metadata
     alert_row = None
     try:
         alert_row = _fetch_open_alert(alert_id)
@@ -655,6 +792,7 @@ def view_report(request: Request, alert_id: str) -> HTMLResponse:
             "execution_steps": execution_steps,
             "alert": alert_row,
             "timeline": timeline,
+            "active_page": "alerts",
         },
     )
 

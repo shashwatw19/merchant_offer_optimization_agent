@@ -4,6 +4,7 @@ import os
 import re
 import time
 from typing import Any, Dict, List, Optional
+from uuid import uuid4
 from google.adk.agents import LlmAgent
 from google.adk.runners import InMemoryRunner
 from google.genai import types
@@ -21,6 +22,17 @@ from agents.tools.bigquery_tools import (
 )
 from agents.tools.policy_tools import validate_proposal
 from agents.tracer import ExecutionTracer
+from agents.metrics import (
+    InvestigationMetrics,
+    active_metrics,
+    before_model,
+    after_model,
+    model_error,
+    before_tool,
+    after_tool,
+    tool_error,
+)
+from agents.runner import persist_agent_run
 from core.config import get_config
 from core.logging import logger
 from domain.contracts import InvestigationReport
@@ -51,22 +63,39 @@ APP_NAME = "merchant_offer_app"
 USER_ID = "merchant_user"
 MODEL_NAME = config.agent.model
 
-agent = LlmAgent(
-    name=config.agent.name,
-    model=MODEL_NAME,
-    instruction=get_system_instruction(),
-    tools=[
-        get_campaign_terms,
-        get_campaign_performance,
-        get_spend_distribution,
-        get_customer_reviews,
-        get_merchant_feedback,
-        get_delivery_metrics,
-        get_comparable_campaigns,
-        validate_proposal,
-        simulate_campaign_change,
-    ],
-)
+ALL_TOOLS = [
+    get_campaign_terms,
+    get_campaign_performance,
+    get_spend_distribution,
+    get_customer_reviews,
+    get_merchant_feedback,
+    get_delivery_metrics,
+    get_comparable_campaigns,
+    validate_proposal,
+    simulate_campaign_change,
+]
+
+# Instantiate LlmAgent with execution metrics callbacks if supported
+try:
+    agent = LlmAgent(
+        name=config.agent.name,
+        model=MODEL_NAME,
+        instruction=get_system_instruction(),
+        tools=ALL_TOOLS,
+        before_model_callback=before_model,
+        after_model_callback=after_model,
+        on_model_error_callback=model_error,
+        before_tool_callback=before_tool,
+        after_tool_callback=after_tool,
+        on_tool_error_callback=tool_error,
+    )
+except TypeError:
+    agent = LlmAgent(
+        name=config.agent.name,
+        model=MODEL_NAME,
+        instruction=get_system_instruction(),
+        tools=ALL_TOOLS,
+    )
 
 root_agent = agent
 runner = InMemoryRunner(agent=agent, app_name=APP_NAME)
@@ -101,11 +130,9 @@ async def get_session(session_id: Optional[str] = None):
 
 def extract_json_report(text: str) -> Optional[Dict[str, Any]]:
     """Extract and validate the JSON report from agent response text."""
-    # Match markdown code block ```json ... ```
     match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", text, re.DOTALL)
     candidate_str = match.group(1) if match else text.strip()
 
-    # Find outermost braces if raw text
     if not match:
         start_idx = candidate_str.find("{")
         end_idx = candidate_str.rfind("}")
@@ -114,7 +141,6 @@ def extract_json_report(text: str) -> Optional[Dict[str, Any]]:
 
     try:
         data = json.loads(candidate_str)
-        # Validate against Pydantic contract
         report = InvestigationReport(**data)
         return report.model_dump()
     except Exception as exc:
@@ -125,13 +151,22 @@ def extract_json_report(text: str) -> Optional[Dict[str, Any]]:
 async def process_alert_async(
     alert: Dict[str, Any],
     execution_id: Optional[str] = None,
+    batch_id: Optional[str] = None,
+    execution_metrics: Optional[InvestigationMetrics] = None,
 ) -> Dict[str, Any]:
-    """Execute end-to-end investigation workflow for an alert using Google ADK."""
+    """Execute end-to-end investigation workflow for an alert using Google ADK with execution observability metrics."""
     start_time = time.time()
     alert_id = alert.get("alert_id", "A_UNKNOWN")
     campaign_id = alert.get("campaign_id", "CMP_UNKNOWN")
     exec_id = execution_id or f"exec_{alert_id}_{int(start_time)}"
     session_id = f"session_alert_{alert_id}"
+
+    # Initialize investigation metrics context
+    metrics_obj = execution_metrics if execution_metrics is not None else InvestigationMetrics()
+    metrics_obj.model_name = MODEL_NAME
+    metrics_obj.attempt = max(1, metrics_obj.attempt)
+    token = active_metrics.set(metrics_obj)
+    agent_start = time.perf_counter()
 
     # Configure GCP environment identical to bigquery_client
     gcp_proj = getattr(getattr(config, "gcp", None), "project_id", "prj-imp-act-campaign")
@@ -147,7 +182,6 @@ async def process_alert_async(
         os.environ["GEMINI_API_KEY"] = api_key
         os.environ["GOOGLE_API_KEY"] = api_key
     else:
-        # Use Google Cloud Vertex AI credentials, identical to BigQuery client
         os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "true"
 
     session = await get_or_create_session(USER_ID, session_id)
@@ -156,13 +190,14 @@ async def process_alert_async(
     content = types.Content(role="user", parts=[types.Part(text=prompt)])
     final_text = ""
     tool_calls_trace: List[Dict[str, Any]] = []
-    tool_start_times: Dict[str, List[float]] = {}
+    tool_start_times: Dict[str, List[tuple]] = {}
     prompt_tokens = 0
     candidates_tokens = 0
     total_tokens = 0
     cached_tokens = 0
     tool_use_tokens = 0
     thoughts_tokens = 0
+    step_count = 0
 
     try:
         async for event in runner.run_async(
@@ -183,18 +218,36 @@ async def process_alert_async(
                 for part in event.content.parts:
                     if getattr(part, "function_call", None):
                         fc = part.function_call
-                        tool_start_times.setdefault(fc.name, []).append(time.time())
+                        step_count += 1
+                        call_id = getattr(fc, "id", None) or str(uuid4())
+                        call_args = dict(fc.args) if fc.args else {}
+                        tool_start_times.setdefault(fc.name, []).append((call_id, time.time()))
+                        metrics_obj.request_tool(call_id, fc.name, call_args, step=step_count)
+                        metrics_obj.start_tool(call_id, fc.name, call_args)
+
                         logger.info(f"Tool called: {fc.name}", extra={"alert_id": alert_id, "tool_name": fc.name})
                         tool_calls_trace.append({
                             "type": "call",
                             "name": fc.name,
-                            "args": fc.args,
+                            "args": call_args,
                             "timestamp": time.time(),
+                            "tool_call_id": call_id,
                         })
                     elif getattr(part, "function_response", None):
                         fr = part.function_response
-                        start_t = tool_start_times[fr.name].pop(0) if tool_start_times.get(fr.name) else time.time()
+                        matched_id = getattr(fr, "id", None)
+                        start_t = time.time()
+                        if tool_start_times.get(fr.name):
+                            stored_id, start_t = tool_start_times[fr.name].pop(0)
+                            if not matched_id:
+                                matched_id = stored_id
+                        if not matched_id:
+                            matched_id = str(uuid4())
+
                         tool_duration_ms = round((time.time() - start_t) * 1000, 2)
+                        metrics_obj.tool_response(matched_id, fr.response, duration_ms=tool_duration_ms)
+                        metrics_obj.end_tool(matched_id, result=fr.response, duration_ms=tool_duration_ms)
+
                         logger.info(f"Tool responded: {fr.name} ({tool_duration_ms}ms)", extra={"alert_id": alert_id, "tool_name": fr.name})
                         tool_calls_trace.append({
                             "type": "response",
@@ -202,6 +255,7 @@ async def process_alert_async(
                             "response": str(fr.response)[:5000],
                             "duration_ms": tool_duration_ms,
                             "timestamp": time.time(),
+                            "tool_call_id": matched_id,
                         })
                     elif getattr(part, "text", None):
                         final_text += part.text
@@ -209,13 +263,26 @@ async def process_alert_async(
         duration_ms = round((time.time() - start_time) * 1000, 2)
         total_tool_latency_ms = round(sum(t.get("duration_ms", 0) for t in tool_calls_trace if t.get("type") == "response"), 2)
 
-        
-        # Total Input = prompt (initial prompt + instructions) + tool_use (results from tool execution)
         total_input_tokens = prompt_tokens + tool_use_tokens
-        # Total Output = candidates (generated text/report) + thoughts (reasoning)
         total_output_tokens = candidates_tokens + thoughts_tokens
-        # If total_tokens from API is reported, preserve it; otherwise sum input + output
         effective_total_tokens = total_tokens or (total_input_tokens + total_output_tokens)
+
+        # Ensure model calls are captured in metrics_obj
+        if not metrics_obj.model_calls or metrics_obj.model_calls[-1]["status"] != "running":
+            usage_dict = {
+                "prompt_token_count": prompt_tokens,
+                "candidates_token_count": candidates_tokens,
+                "total_token_count": effective_total_tokens,
+                "cached_content_token_count": cached_tokens,
+                "tool_use_prompt_token_count": tool_use_tokens,
+                "thoughts_token_count": thoughts_tokens,
+            }
+            metrics_obj.record_model_call(
+                model=MODEL_NAME,
+                duration_ms=duration_ms,
+                usage=usage_dict,
+                status="success",
+            )
 
         metrics = {
             "duration_ms": duration_ms,
@@ -232,10 +299,8 @@ async def process_alert_async(
             "model": MODEL_NAME,
         }
         parsed_report = extract_json_report(final_text)
-
         now_str = now_ist_str()
 
-        # Fallback if LLM output could not be strictly parsed as JSON
         if not parsed_report:
             parsed_report = {
                 "alert_id": alert_id,
@@ -266,6 +331,28 @@ async def process_alert_async(
             parsed_report["metrics"] = metrics
             parsed_report["tool_calls"] = tool_calls_trace
 
+        # Finalize execution metrics
+        metrics_obj.agent_duration_ms = round((time.perf_counter() - agent_start) * 1000, 3)
+        if metrics_obj.status == "running":
+            metrics_obj.status = "completed"
+        if execution_metrics is None:
+            metrics_obj.finish(metrics_obj.status)
+        active_metrics.reset(token)
+
+        # Audit persistence to BigQuery table offers_gold.agent_runs
+        try:
+            persist_agent_run(
+                alert_id=alert_id,
+                report=parsed_report,
+                tool_calls=metrics_obj.tool_calls or tool_calls_trace,
+                batch_id=batch_id or "OFFER_AGENT_RUN",
+                execution_metrics=metrics_obj,
+                campaign_id=campaign_id,
+            )
+        except Exception as persist_err:
+            logger.warning(f"Failed to persist agent run to BigQuery: {persist_err}")
+
+        # Local JSONL trace logging
         tracer.write_trace(
             alert_id=alert_id,
             campaign_id=campaign_id,
@@ -288,6 +375,7 @@ async def process_alert_async(
             "tool_calls": tool_calls_trace,
             "duration_ms": duration_ms,
             "metrics": metrics,
+            "execution_metrics": metrics_obj.to_dict(),
         }
 
     except Exception as exc:
@@ -310,6 +398,24 @@ async def process_alert_async(
             "tool_call_count": len([t for t in tool_calls_trace if t.get("type") == "call"]),
             "model": MODEL_NAME,
         }
+
+        metrics_obj.agent_duration_ms = round((time.perf_counter() - agent_start) * 1000, 3)
+        metrics_obj.attempt_failed(exc)
+        metrics_obj.finish("failed", error=exc)
+        active_metrics.reset(token)
+
+        try:
+            persist_agent_run(
+                alert_id=alert_id,
+                report=None,
+                tool_calls=metrics_obj.tool_calls or tool_calls_trace,
+                batch_id=batch_id or "OFFER_AGENT_RUN",
+                execution_metrics=metrics_obj,
+                campaign_id=campaign_id,
+            )
+        except Exception as persist_err:
+            logger.warning(f"Failed to persist failed agent run to BigQuery: {persist_err}")
+
         tracer.write_trace(
             alert_id=alert_id,
             campaign_id=campaign_id,
@@ -331,4 +437,5 @@ async def process_alert_async(
             "tool_calls": tool_calls_trace,
             "duration_ms": duration_ms,
             "metrics": metrics,
+            "execution_metrics": metrics_obj.to_dict(),
         }

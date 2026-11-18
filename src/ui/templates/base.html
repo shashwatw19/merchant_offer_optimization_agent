@@ -11,8 +11,14 @@
 </head>
 <body>
   <header class="site-header">
-    <a class="brand" href="/">Merchant Offer Agent</a>
-    <span class="header-caption">Evidence-led campaign investigations</span>
+    <div class="brand-group">
+      <a class="brand" href="/">Merchant Offer Agent</a>
+      <span class="header-caption">Evidence-led campaign investigations</span>
+    </div>
+    <nav class="navigation" aria-label="Main navigation">
+      <a id="nav-alerts" class="nav-button {% if active_page == 'alerts' %}active{% endif %}" href="/">Alerts</a>
+      <a id="nav-admin" class="nav-button {% if active_page == 'admin' %}active{% endif %}" href="/admin">Admin Panel</a>
+    </nav>
   </header>
   <main class="page-container">
     {% block content %}{% endblock %}

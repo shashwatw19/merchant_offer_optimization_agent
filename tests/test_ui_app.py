@@ -178,3 +178,100 @@ def test_build_execution_steps_parallel_tool_calls():
         assert step["args"] == expected_args
         assert step["status"] == "SUCCESS"
         assert len(step["response_summary"]) > 0
+
+
+
+def test_ui_admin_panel_page(client):
+    response = client.get("/admin")
+    assert response.status_code == 200
+    assert "Admin Panel" in response.text
+    assert "Batch averages" in response.text
+    assert "Investigation execution metrics" in response.text
+
+
+def test_ui_admin_investigations_api(client):
+    mock_rows = [
+        {
+            "run_key": "exec_run_1",
+            "alert_id": "A1001",
+            "campaign_id": "CMP131",
+            "run_number": 1,
+            "recommendation": "TEST",
+            "confidence": "COMPLETE",
+            "run_status": "completed",
+            "run_time_ist": "2026-11-18 10:00:00 IST",
+            "duration_ms": 3200.0,
+            "metrics_json": json.dumps({
+                "schema_version": 1,
+                "run_id": "exec_run_1",
+                "status": "completed",
+                "token_totals": {"total_tokens": 1500, "input_tokens": 1200, "output_tokens": 300},
+            }),
+        }
+    ]
+    with patch("ui.app.execute_query", return_value=mock_rows), \
+         patch("ui.app.ensure_agent_runs_table", return_value=None):
+        response = client.get("/api/admin/investigations?limit=25&offset=0")
+        assert response.status_code == 200
+        data = response.json()
+        assert "investigations" in data
+        assert len(data["investigations"]) == 1
+        assert data["investigations"][0]["alert_id"] == "A1001"
+        assert data["investigations"][0]["execution_metrics"]["token_totals"]["total_tokens"] == 1500
+
+
+def test_ui_admin_batch_averages_api(client):
+    mock_batches = [
+        {
+            "batch_id": "OFFER_BATCH_01",
+            "investigation_count": 5,
+            "token_sample_count": 5,
+            "avg_total_tokens": 2450.0,
+            "duration_sample_count": 5,
+            "avg_duration_ms": 3100.5,
+        }
+    ]
+    with patch("ui.app.execute_query", return_value=mock_batches), \
+         patch("ui.app.ensure_agent_runs_table", return_value=None):
+        response = client.get("/api/admin/batch-averages")
+        assert response.status_code == 200
+        data = response.json()
+        assert "batches" in data
+        assert len(data["batches"]) == 1
+        assert data["batches"][0]["batch_id"] == "OFFER_BATCH_01"
+        assert data["batches"][0]["avg_total_tokens"] == 2450.0
+
+
+def test_ui_admin_investigation_detail_api(client):
+    mock_run = [
+        {
+            "run_key": "exec_run_1",
+            "alert_id": "A1001",
+            "campaign_id": "CMP131",
+            "run_number": 1,
+            "recommendation": "TEST",
+            "confidence": "COMPLETE",
+            "run_status": "completed",
+            "run_time_ist": "2026-11-18 10:00:00 IST",
+            "duration_ms": 3200.0,
+            "metrics_json": json.dumps({
+                "schema_version": 1,
+                "run_id": "exec_run_1",
+                "status": "completed",
+                "token_totals": {"total_tokens": 1500},
+                "model_calls": [{"model": "gemini-3.5-flash", "duration_ms": 2800.0}],
+            }),
+            "tool_calls_json": json.dumps([
+                {"tool": "get_campaign_terms", "status": "success", "duration_ms": 150.0}
+            ]),
+        }
+    ]
+    with patch("ui.app.execute_query", return_value=mock_run), \
+         patch("ui.app.ensure_agent_runs_table", return_value=None):
+        response = client.get("/api/admin/investigations/exec_run_1")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["alert_id"] == "A1001"
+        assert data["execution_metrics"]["token_totals"]["total_tokens"] == 1500
+        assert len(data["tool_calls"]) == 1
+        assert data["tool_calls"][0]["tool"] == "get_campaign_terms"

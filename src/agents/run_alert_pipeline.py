@@ -3,13 +3,14 @@ import asyncio
 import json
 import sys
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from agents.agent import process_alert_async
+from agents.runner import ensure_agent_runs_table
 from agents.tools.alert_store import (
     ensure_alert_table,
     fetch_pending_alerts,
@@ -27,19 +28,21 @@ async def process_alert_batch(
     alerts: List[Dict[str, Any]],
     output_dir: Path,
     dry_run: bool = False,
+    batch_id: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
-    """Process a batch of alerts concurrently or sequentially with status tracking."""
+    """Process a batch of alerts concurrently or sequentially with status tracking and execution metrics."""
     results = []
+    eff_batch_id = batch_id or f"BATCH_{now_ist_str()[:10].replace('-', '')}"
 
     for alert in alerts:
         alert_id = alert["alert_id"]
         campaign_id = alert["campaign_id"]
-        logger.info(f"Starting investigation for alert {alert_id} (Campaign: {campaign_id})")
+        logger.info(f"Starting investigation for alert {alert_id} (Campaign: {campaign_id}, Batch: {eff_batch_id})")
 
         if not dry_run:
             update_alert_status(alert_id, "PROCESSING")
 
-        result = await process_alert_async(alert)
+        result = await process_alert_async(alert, batch_id=eff_batch_id)
         results.append(result)
 
         if result["success"]:
@@ -62,25 +65,31 @@ async def process_alert_batch(
             logger.info(f"Saved investigation report JSON locally to {report_file}")
 
             # 2. Upload canonical JSON report to GCS
-            storage_service = get_storage_service()
-            gcs_json_res = storage_service.upload_json(
-                report_data=report,
-                execution_id=exec_id,
-                alert_id=alert_id,
-                campaign_id=campaign_id,
-            )
-            result["gcs_json_uri"] = gcs_json_res.uri
+            try:
+                storage_service = get_storage_service()
+                gcs_json_res = storage_service.upload_json(
+                    report_data=report,
+                    execution_id=exec_id,
+                    alert_id=alert_id,
+                    campaign_id=campaign_id,
+                )
+                result["gcs_json_uri"] = gcs_json_res.uri
+            except Exception as gcs_err:
+                logger.warning(f"Could not upload JSON report to GCS: {gcs_err}")
 
-            # 3. Generate Markdown report and upload to GCS (via convert_json_report_to_markdown tool)
-            md_file = output_dir / f"report_{alert_id}.md"
-            md_res = convert_json_report_to_markdown(
-                report_data=report,
-                execution_id=exec_id,
-                output_path=str(md_file),
-                save_to_gcs=True,
-            )
-            result["gcs_markdown_uri"] = md_res.get("gcs_uri")
-            result["markdown_content"] = md_res.get("markdown_content")
+            # 3. Generate Markdown report and upload to GCS
+            try:
+                md_file = output_dir / f"report_{alert_id}.md"
+                md_res = convert_json_report_to_markdown(
+                    report_data=report,
+                    execution_id=exec_id,
+                    output_path=str(md_file),
+                    save_to_gcs=True,
+                )
+                result["gcs_markdown_uri"] = md_res.get("gcs_uri")
+                result["markdown_content"] = md_res.get("markdown_content")
+            except Exception as md_err:
+                logger.warning(f"Could not upload Markdown report to GCS: {md_err}")
 
             if not dry_run:
                 update_alert_status(alert_id, "RESOLVED", summary=summary)
@@ -99,6 +108,7 @@ def main() -> None:
     )
     parser.add_argument("--limit", type=int, default=5, help="Maximum number of alerts to process.")
     parser.add_argument("--alert-id", type=str, default=None, help="Specific alert ID to investigate.")
+    parser.add_argument("--batch-id", type=str, default=None, help="Optional batch identifier for execution metrics.")
     parser.add_argument("--output-dir", type=str, default="output", help="Directory to save report JSON files.")
     parser.add_argument("--dry-run", action="store_true", help="Run without updating BigQuery alert statuses.")
 
@@ -110,6 +120,7 @@ def main() -> None:
 
     if not args.dry_run:
         ensure_alert_table()
+        ensure_agent_runs_table()
 
     if args.alert_id:
         pending_alerts = [
@@ -132,7 +143,14 @@ def main() -> None:
         return
 
     logger.info(f"Found {len(pending_alerts)} pending alert(s) to process.")
-    results = asyncio.run(process_alert_batch(pending_alerts, output_dir=output_dir, dry_run=args.dry_run))
+    results = asyncio.run(
+        process_alert_batch(
+            pending_alerts,
+            output_dir=output_dir,
+            dry_run=args.dry_run,
+            batch_id=args.batch_id,
+        )
+    )
 
     successes = sum(1 for r in results if r.get("success"))
     logger.info(f"Pipeline finished: {successes}/{len(results)} alerts successfully investigated.")
