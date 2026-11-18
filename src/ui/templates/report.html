@@ -4,8 +4,30 @@
 
 {% block content %}
   <div class="report-navigation">
-    <a class="back-link" href="/">← Back to open alerts</a>
-    <a class="text-link export-link" href="/reports/{{ report.alert_id }}/markdown" target="_blank" download="report_{{ report.alert_id }}.md">Export Markdown</a>
+    <a class="back-link" href="/">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" style="vertical-align:-2px;">
+        <path d="M19 12H5M12 5l-7 7 7 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      Back to open alerts
+    </a>
+    <div class="report-nav-actions">
+      <button class="button-ghost" onclick="window.print()" title="Print or save as PDF">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <polyline points="6 9 6 2 18 2 18 9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <rect x="6" y="14" width="12" height="8" rx="1" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        Print / PDF
+      </button>
+      <a class="button-ghost" href="/reports/{{ report.alert_id }}/markdown" target="_blank" download="report_{{ report.alert_id }}.md">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <polyline points="7 10 12 15 17 10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <line x1="12" y1="15" x2="12" y2="3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+        Export Markdown
+      </a>
+    </div>
   </div>
 
   <section class="page-heading report-heading">
@@ -17,21 +39,37 @@
         <p class="timestamp-caption">Generated at: {{ report.generated_at }} · Execution ID: <code>{{ report.execution_id or ("exec_" ~ report.alert_id) }}</code></p>
       {% endif %}
     </div>
-    
+    <div class="report-status-chip">
+      <span class="status-pill status-pill-{{ (report.status or 'complete') | lower }}">{{ report.status or "COMPLETE" }}</span>
+    </div>
   </section>
 
-  <p class="notice" role="alert">
-    <!-- <strong>Human review required.</strong> -->
-    This report is advisory. No campaign changes or alert status updates were made. All recommendations require Human approval prior to deployment.
-  </p>
+  <!-- Section quick-nav -->
+  <nav class="report-section-nav" aria-label="Jump to section">
+    <span class="section-nav-label">Jump to:</span>
+    <a class="section-nav-link" href="#section-campaign">A. Campaign</a>
+    <a class="section-nav-link" href="#section-terms">B. Terms</a>
+    <a class="section-nav-link" href="#section-findings">C. Findings</a>
+    <a class="section-nav-link" href="#section-execution">Execution</a>
+  </nav>
+
+  <div class="notice notice-advisory" role="alert">
+    <span class="notice-icon" aria-hidden="true">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
+        <line x1="12" y1="8" x2="12" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        <line x1="12" y1="16" x2="12.01" y2="16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+    </span>
+    <span><strong>Human review required.</strong> This report is advisory only. No campaign changes or alert status updates were made. All recommendations require human approval prior to deployment.</span>
+  </div>
 
   <!-- =========================================================
        SECTION A: CAMPAIGN INFORMATION
        ========================================================= -->
-  <section class="report-section">
+  <section class="report-section" id="section-campaign">
     <div class="section-header">
       <h2>A. Campaign Information</h2>
-      <!-- <span class="section-caption">Original configuration and merchant-defined parameters</span> -->
     </div>
 
     <article class="report-card">
@@ -128,10 +166,9 @@
   <!-- =========================================================
        SECTION B: ACTUAL CAMPAIGN TERMS VS. AGENT'S PROPOSED TERMS
        ========================================================= -->
-  <section class="report-section">
+  <section class="report-section" id="section-terms">
     <div class="section-header">
       <h2>B. Actual Campaign Terms vs. Agent's Proposed Terms</h2>
-      <!-- <span class="section-caption">Direct parameter comparison highlighting adjustments and strategic reasoning</span> -->
     </div>
 
     <div class="report-card comparison-card">
@@ -264,10 +301,9 @@
   <!-- =========================================================
        SECTION C: INVESTIGATION FINDINGS
        ========================================================= -->
-  <section class="report-section">
+  <section class="report-section" id="section-findings">
     <div class="section-header">
       <h2>C. Investigation Findings</h2>
-      <!-- <span class="section-caption">Evidence-backed analysis, diagnostic hypotheses, and operational recommendations</span> -->
     </div>
 
     <!-- 1. Investigation Summary -->
@@ -302,9 +338,10 @@
         <p class="muted">No specific findings were recorded in this report.</p>
       {% endif %}
     </article>
+
     <!-- 2. Issues / Opportunities Identified -->
     <article class="report-card mb-4">
-      <h3 class="card-subtitle">Root Cause Hypotheses & Diagnostic Evaluation</h3>
+      <h3 class="card-subtitle">Root Cause Hypotheses &amp; Diagnostic Evaluation</h3>
       {% if report.hypotheses %}
         <div class="hypothesis-grid">
           {% for hypothesis in report.hypotheses %}
@@ -323,9 +360,6 @@
         <p class="muted">No explicit diagnostic hypotheses were formulated for this investigation.</p>
       {% endif %}
     </article>
-
-    <!-- 3. Key Findings & Supporting Evidence -->
-   
 
     <!-- 4. Final Recommendation & Outcome -->
     <article class="report-card recommendation-card">
@@ -355,7 +389,7 @@
   <!-- =========================================================
        SECTION 2: AGENT EXECUTION SUMMARY (COLLAPSIBLE)
        ========================================================= -->
-  <section class="report-section execution-section">
+  <section class="report-section execution-section" id="section-execution">
     <div class="execution-toggle-bar">
       <div>
         <h2 class="collapsible-title">Agent Execution Summary</h2>
@@ -558,5 +592,16 @@
         btn.classList.remove('expanded');
       }
     }
+
+    // Smooth scroll for section nav links
+    document.querySelectorAll('.section-nav-link').forEach(function(link) {
+      link.addEventListener('click', function(e) {
+        var target = document.querySelector(this.getAttribute('href'));
+        if (target) {
+          e.preventDefault();
+          target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      });
+    });
   </script>
 {% endblock %}

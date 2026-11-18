@@ -6,16 +6,35 @@
   <section class="page-heading">
     <div>
       <p class="eyebrow">Investigation workspace</p>
-      <h1>Open alerts</h1>
+      <h1>Open alerts
+        {% if alerts %}
+          <span class="count-badge">{{ alerts | length }}</span>
+        {% endif %}
+      </h1>
       <p class="subheading">Review campaign signals and run an evidence-backed agent investigation.</p>
     </div>
-   
   </section>
 
   {% if alerts %}
-    <div class="alert-list">
+    <!-- Status filter tabs -->
+    <div class="filter-tabs" role="tablist" aria-label="Filter alerts by status">
+      <button class="filter-tab active" data-filter="all" role="tab" aria-selected="true" onclick="filterAlerts('all', this)">
+        All <span class="tab-count">{{ alerts | length }}</span>
+      </button>
+      <button class="filter-tab" data-filter="open" role="tab" aria-selected="false" onclick="filterAlerts('open', this)">
+        Open
+      </button>
+      <button class="filter-tab" data-filter="resolved" role="tab" aria-selected="false" onclick="filterAlerts('resolved', this)">
+        Resolved
+      </button>
+      <button class="filter-tab" data-filter="processing" role="tab" aria-selected="false" onclick="filterAlerts('processing', this)">
+        Processing
+      </button>
+    </div>
+
+    <div class="alert-list" id="alert-list">
       {% for alert in alerts %}
-        <article class="alert-card">
+        <article class="alert-card" data-status="{{ alert.status | lower }}">
           <div class="alert-card-top">
             <div>
               <p class="eyebrow">{{ alert.rule_id }} · {{ alert.alert_id }}</p>
@@ -24,11 +43,15 @@
             </div>
             <div class="alert-title-meta">
               <div class="meta-badge-row">
-                <span class="status-badge">{{ alert.status }}</span>
+                <span class="status-badge status-badge-{{ alert.status | lower }}">
+                  {% if alert.status == 'OPEN' %}
+                    <span class="status-dot" aria-hidden="true"></span>
+                  {% endif %}
+                  {{ alert.status }}
+                </span>
                 {% set s_date = alert.timeline.start_date if (alert.timeline and alert.timeline.start_date and alert.timeline.start_date != 'Campaign Start') else alert.start_date %}
                 {% set e_date = alert.timeline.end_date if (alert.timeline and alert.timeline.end_date and alert.timeline.end_date != 'Campaign End') else alert.end_date %}
                 <span class="card-timeline-badge" title="Campaign Timeline">
-                
                   {% if s_date and e_date %}
                     <span>{{ s_date }} to {{ e_date }}</span>
                     {% if alert.timeline and alert.timeline.total_days %}
@@ -64,7 +87,7 @@
                   </span>
                 </span>
               </dt>
-              <dd class="font-mono">
+              <dd class="font-mono metric-value-display metric-value-observed">
                 {{ alert.metric_value if alert.metric_value is not none else "—" }}{% if alert.metric_value is not none and alert.metric_name and ('rate' in alert.metric_name or 'pct' in alert.metric_name or 'share' in alert.metric_name) %}%{% endif %}
               </dd>
             </div>
@@ -85,7 +108,7 @@
                   </span>
                 </span>
               </dt>
-              <dd class="font-mono">
+              <dd class="font-mono metric-value-display metric-value-threshold">
                 {{ alert.threshold_value if alert.threshold_value is not none else "—" }}{% if alert.threshold_value is not none and alert.metric_name and ('rate' in alert.metric_name or 'pct' in alert.metric_name or 'share' in alert.metric_name) %}%{% endif %}
               </dd>
             </div>
@@ -101,16 +124,36 @@
             </div>
           {% endif %}
           <div class="card-actions">
-            <form method="post" action="{{ url_for('investigate_alert', alert_id=alert.alert_id) }}">
-              <button type="submit">{% if alert.has_report or alert.status == 'RESOLVED' %}Re-run investigation{% else %}Run investigation{% endif %}</button>
+            <form method="post" action="{{ url_for('investigate_alert', alert_id=alert.alert_id) }}" class="run-form">
+              <button type="submit" class="btn-run {% if alert.has_report or alert.status == 'RESOLVED' %}btn-rerun{% endif %}">
+                <span class="btn-label">{% if alert.has_report or alert.status == 'RESOLVED' %}Re-run investigation{% else %}Run investigation{% endif %}</span>
+                <span class="btn-spinner" aria-hidden="true"></span>
+              </button>
             </form>
             {% if alert.has_report %}
-              <a class="text-link" href="{{ url_for('view_report', alert_id=alert.alert_id) }}">View saved report</a>
+              <a class="text-link view-report-link" href="{{ url_for('view_report', alert_id=alert.alert_id) }}">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" style="vertical-align:-2px; margin-right:3px;">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                  <polyline points="14 2 14 8 20 8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                  <line x1="16" y1="13" x2="8" y2="13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                  <line x1="16" y1="17" x2="8" y2="17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                  <polyline points="10 9 9 9 8 9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+                View saved report
+              </a>
             {% endif %}
           </div>
         </article>
       {% endfor %}
     </div>
+
+    <!-- Empty filter result message -->
+    <div class="filter-empty-state" id="filter-empty" style="display:none;">
+      <span class="empty-icon" aria-hidden="true">🔍</span>
+      <h2>No alerts match this filter</h2>
+      <p>Try selecting a different status tab.</p>
+    </div>
+
   {% else %}
     <section class="empty-state">
       <span class="empty-icon" aria-hidden="true">✓</span>
@@ -118,4 +161,40 @@
       <p>There are no alerts to investigate right now.</p>
     </section>
   {% endif %}
+
+  <script>
+    // Status filter tabs
+    function filterAlerts(status, btn) {
+      // Update tab active state
+      document.querySelectorAll('.filter-tab').forEach(function(t) {
+        t.classList.remove('active');
+        t.setAttribute('aria-selected', 'false');
+      });
+      btn.classList.add('active');
+      btn.setAttribute('aria-selected', 'true');
+
+      var cards = document.querySelectorAll('.alert-card');
+      var visible = 0;
+      cards.forEach(function(card) {
+        var cardStatus = card.getAttribute('data-status');
+        var show = (status === 'all') || (cardStatus === status);
+        card.style.display = show ? '' : 'none';
+        if (show) visible++;
+      });
+
+      var emptyEl = document.getElementById('filter-empty');
+      if (emptyEl) emptyEl.style.display = (visible === 0) ? '' : 'none';
+    }
+
+    // Loading state on investigation form submit
+    document.querySelectorAll('.run-form').forEach(function(form) {
+      form.addEventListener('submit', function() {
+        var btn = form.querySelector('button[type="submit"]');
+        if (!btn) return;
+        btn.classList.add('loading');
+        btn.disabled = true;
+        btn.querySelector('.btn-label').textContent = 'Running…';
+      });
+    });
+  </script>
 {% endblock %}

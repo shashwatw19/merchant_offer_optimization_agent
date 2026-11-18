@@ -1700,3 +1700,450 @@ a:focus-visible {
   color: var(--muted);
   border: 1px solid var(--line);
 }
+
+
+/* =========================================================
+   UI IMPROVEMENTS — PHASE 2
+   Dashboard filter tabs, improved status badges, loading
+   spinner, report section nav, footer, print styles
+   ========================================================= */
+
+/* ---- Brand Icon ---- */
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.brand-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+/* ---- Nav Icon ---- */
+.nav-icon {
+  flex-shrink: 0;
+}
+
+.nav-button {
+  gap: 0.4rem;
+}
+
+/* ---- Site Footer ---- */
+.site-footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  padding: 1.25rem 1.5rem;
+  border-top: 1px solid var(--line);
+  color: var(--muted-light);
+  font-size: 0.8rem;
+  font-weight: 400;
+  margin-top: 2rem;
+}
+
+.footer-sep {
+  color: var(--line-strong);
+}
+
+/* ---- Dashboard: Alert Count Badge in h1 ---- */
+.page-heading h1 .count-badge {
+  font-size: 1rem;
+  font-weight: 700;
+  vertical-align: middle;
+  margin-left: 0.5rem;
+  padding: 0.2rem 0.6rem;
+}
+
+/* ---- Status-specific badge colours ---- */
+.status-badge-open {
+  background: #fff7ed;
+  color: #c2410c;
+  border: 1px solid #fed7aa;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border-radius: 999px;
+  padding: 0.3rem 0.75rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.status-badge-resolved {
+  background: var(--success-bg);
+  color: var(--success);
+  border: 1px solid var(--success-border);
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.3rem 0.75rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.status-badge-processing {
+  background: #f0f9ff;
+  color: #0369a1;
+  border: 1px solid #bae6fd;
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.3rem 0.75rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.status-badge-error {
+  background: var(--danger-bg);
+  color: var(--danger);
+  border: 1px solid var(--danger-border);
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.3rem 0.75rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+/* Animated dot for OPEN status */
+.status-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: status-pulse 2s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+@keyframes status-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.4; }
+}
+
+/* ---- Dashboard: Metric value display improvements ---- */
+.metric-value-display {
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.metric-value-observed {
+  color: var(--danger);
+}
+
+.metric-value-threshold {
+  color: var(--ink-secondary);
+}
+
+/* ---- Dashboard: Filter tabs ---- */
+.filter-tabs {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-bottom: 1.25rem;
+  border-bottom: 2px solid var(--line);
+  padding-bottom: 0;
+}
+
+.filter-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 0.9rem;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--muted);
+  font-family: inherit;
+  font-size: 0.88rem;
+  font-weight: 500;
+  cursor: pointer;
+  min-height: unset;
+  position: relative;
+  bottom: -2px;
+  border-bottom: 2px solid transparent;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.filter-tab:hover {
+  color: var(--ink);
+  background: transparent;
+}
+
+.filter-tab.active {
+  color: var(--accent);
+  font-weight: 600;
+  border-bottom-color: var(--accent);
+  background: transparent;
+}
+
+.tab-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--accent-light);
+  color: var(--accent-dark);
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+/* ---- Dashboard: Filter empty state ---- */
+.filter-empty-state {
+  text-align: center;
+  padding: 3rem 1.5rem;
+  color: var(--muted);
+}
+
+.filter-empty-state .empty-icon {
+  font-size: 2rem;
+  display: block;
+  margin-bottom: 0.75rem;
+}
+
+.filter-empty-state h2 {
+  margin: 0 0 0.35rem;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.filter-empty-state p {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+/* ---- Dashboard: Improved "Run investigation" button ---- */
+.btn-run {
+  position: relative;
+  overflow: hidden;
+  gap: 0.5rem;
+}
+
+.btn-run .btn-spinner {
+  display: none;
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.4);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+
+.btn-run.loading .btn-spinner {
+  display: block;
+}
+
+.btn-run.loading {
+  opacity: 0.75;
+  pointer-events: none;
+}
+
+.btn-rerun {
+  background: var(--ink-secondary);
+}
+
+.btn-rerun:hover {
+  background: var(--ink);
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ---- Dashboard: View report link ---- */
+.view-report-link {
+  display: inline-flex;
+  align-items: center;
+}
+
+/* ---- Report: Nav actions row ---- */
+.report-nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* Ghost button (Print / Export) */
+.button-ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.42rem 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--muted);
+  font-family: inherit;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  text-decoration: none;
+  transition: all 0.15s ease;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  min-height: unset;
+}
+
+.button-ghost:hover {
+  background: #f8fafc;
+  border-color: var(--line-strong);
+  color: var(--ink);
+}
+
+/* ---- Report: Status chip top-right of heading ---- */
+.report-status-chip {
+  flex-shrink: 0;
+  padding-top: 0.4rem;
+}
+
+/* ---- Report: Section quick-nav ---- */
+.report-section-nav {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.5rem;
+  margin-bottom: 1.5rem;
+  padding: 0.65rem 1rem;
+  background: #f8fafc;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: 0.84rem;
+}
+
+.section-nav-label {
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-right: 0.25rem;
+}
+
+.section-nav-link {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.6rem;
+  border-radius: 5px;
+  font-size: 0.84rem;
+  font-weight: 500;
+  color: var(--accent);
+  background: transparent;
+  transition: background 0.12s ease;
+}
+
+.section-nav-link:hover {
+  background: var(--accent-light);
+  text-decoration: none;
+  color: var(--accent-dark);
+}
+
+/* ---- Report: Improved advisory notice ---- */
+.notice-advisory {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  margin-bottom: 2rem;
+  padding: 0.95rem 1.25rem;
+  border: 1px solid var(--warning-border);
+  border-radius: 10px;
+  background: var(--warning-bg);
+  color: var(--warning-ink);
+  font-size: 0.9rem;
+  line-height: 1.55;
+  font-weight: 400;
+}
+
+.notice-advisory strong {
+  font-weight: 600;
+}
+
+.notice-icon {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  margin-top: 1px;
+  color: #d97706;
+}
+
+/* ---- Dashboard/Report: Empty state improvements ---- */
+.empty-state {
+  text-align: center;
+  padding: 4rem 2rem;
+  border-radius: 12px;
+}
+
+.empty-icon {
+  display: block;
+  font-size: 2.5rem;
+  margin-bottom: 1rem;
+}
+
+.empty-state h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.empty-state p {
+  margin: 0;
+  font-size: 0.95rem;
+  color: var(--muted);
+}
+
+/* ---- muted text helper ---- */
+.muted {
+  color: var(--muted);
+}
+
+/* ---- Print styles ---- */
+@media print {
+  .site-header,
+  .site-footer,
+  .report-navigation,
+  .report-section-nav,
+  .execution-toggle-btn,
+  .button-ghost {
+    display: none !important;
+  }
+
+  .page-container {
+    width: 100%;
+    margin: 0;
+  }
+
+  .execution-summary-panel {
+    display: block !important;
+  }
+
+  .report-card,
+  .alert-card {
+    box-shadow: none;
+    border: 1px solid #e2e8f0;
+  }
+
+  .notice-advisory {
+    border: 1px solid #fde68a;
+  }
+
+  body {
+    font-size: 0.88rem;
+  }
+}
