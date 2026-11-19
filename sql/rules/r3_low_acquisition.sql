@@ -1,4 +1,4 @@
-﻿-- Rule R3: Low Acquisition Alert (Existing customer dominance >= 75% in new acquisition campaigns)
+-- Rule R3: Low Acquisition Alert (Existing customer dominance >= 75% in new acquisition campaigns)
 -- Parameter: existing_customer_share_threshold loaded from alert_rules_config
 -- Filter criterion: existing_customer_share >= 75.00
 WITH rule_config AS (

@@ -1,4 +1,4 @@
-﻿/* ==========================================================
+/* ==========================================================
    PROJECT : prj-imp-act-campaign
    SOURCE  : card_bronze.customers_raw
    TARGET  : card_silver.customers

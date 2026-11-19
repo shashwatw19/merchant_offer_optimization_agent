@@ -1,4 +1,4 @@
-﻿CREATE OR REPLACE TABLE `prj-imp-act-campaign.card_gold.alert_rules_config` AS
+CREATE OR REPLACE TABLE `prj-imp-act-campaign.card_gold.alert_rules_config` AS
 
 SELECT
     'R1' AS rule_id,

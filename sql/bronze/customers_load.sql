@@ -1,4 +1,4 @@
-﻿CREATE OR REPLACE EXTERNAL TABLE `prj-imp-act-campaign.card_bronze.ext_customers`
+CREATE OR REPLACE EXTERNAL TABLE `prj-imp-act-campaign.card_bronze.ext_customers`
 (
     customer_id STRING,
     city STRING,

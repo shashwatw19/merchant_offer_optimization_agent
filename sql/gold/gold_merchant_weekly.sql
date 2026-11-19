@@ -1,4 +1,4 @@
-﻿CREATE OR REPLACE TABLE `prj-imp-act-campaign.card_gold.gold_merchant_spend_profile` AS
+CREATE OR REPLACE TABLE `prj-imp-act-campaign.card_gold.gold_merchant_spend_profile` AS
 
 WITH merchant_txn AS (
 

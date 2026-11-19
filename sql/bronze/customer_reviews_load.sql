@@ -1,4 +1,4 @@
-﻿CREATE OR REPLACE EXTERNAL TABLE `prj-imp-act-campaign.card_bronze.ext_customer_reviews`
+CREATE OR REPLACE EXTERNAL TABLE `prj-imp-act-campaign.card_bronze.ext_customer_reviews`
 (
     review_id STRING,
     merchant_id STRING,

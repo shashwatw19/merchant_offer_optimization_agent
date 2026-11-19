@@ -1,4 +1,4 @@
-﻿-- Rule R1: Low Redemption Rate Alert (< 5% of targeted customer audience by default)
+-- Rule R1: Low Redemption Rate Alert (< 5% of targeted customer audience by default)
 -- Parameter: redemption_rate_threshold loaded from alert_rules_config
 -- Filter criterion: redemption_rate < 5.00
 WITH rule_config AS (

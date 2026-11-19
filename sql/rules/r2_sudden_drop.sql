@@ -1,4 +1,4 @@
-﻿-- Rule R2: Sudden Drop in Redemption Rate Between Comparable Periods
+-- Rule R2: Sudden Drop in Redemption Rate Between Comparable Periods
 -- Parameters: min_p1_rate, drop_multiplier loaded from alert_rules_config
 WITH rule_config AS (
     SELECT
