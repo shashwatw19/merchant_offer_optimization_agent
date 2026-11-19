@@ -45,8 +45,8 @@ echo "======================================"
 # 5. Campaign Redemptions (depends on transactions, campaigns, customers)
 SILVER_FILES=(
     "invalid_records.sql"
-    "customers.sql"
     "merchants.sql"
+    "customers.sql"
     "campaigns.sql"
     "transactions.sql"
     "customer_reviews.sql"
