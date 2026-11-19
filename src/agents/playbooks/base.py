@@ -74,6 +74,15 @@ Step 7: Synthesize your findings into a structured report JSON object."""
     def get_output_contract(self) -> str:
         return DEFAULT_OUTPUT_CONTRACT
 
+    def get_investigation_mandate(self) -> str:
+        return """INVESTIGATION MANDATE:
+1. Retrieve campaign terms and baseline performance.
+2. Retrieve merchant spend distribution and delivery metrics.
+3. Retrieve dated customer reviews and merchant operational feedback notes.
+4. Formulate verified facts and testable hypotheses.
+5. If proposing a spend threshold adjustment, validate it with validate_proposal and evaluate with simulate_campaign_change.
+6. Return a complete, valid JSON InvestigationReport matching the output contract."""
+
     def build_system_instruction(self) -> str:
         """Assemble complete system prompt for the agent."""
         sections = [
@@ -87,15 +96,13 @@ Step 7: Synthesize your findings into a structured report JSON object."""
     def build_investigation_prompt(self, alert: Dict[str, Any]) -> str:
         """Assemble user investigation task prompt for a specific alert."""
         alert_json = json.dumps(alert, indent=2, default=str)
+        methodology = self.get_investigation_methodology()
+        mandate = self.get_investigation_mandate()
         return f"""Investigate this merchant offer alert according to enterprise policy.
 
 ALERT DETAILS:
 {alert_json}
 
-INVESTIGATION MANDATE:
-1. Retrieve campaign terms and baseline performance.
-2. Retrieve merchant spend distribution and delivery metrics.
-3. Retrieve dated customer reviews and merchant operational feedback notes.
-4. Formulate verified facts and testable hypotheses.
-5. If proposing a spend threshold adjustment, validate it with validate_proposal and evaluate with simulate_campaign_change.
-6. Return a complete, valid JSON InvestigationReport matching the output contract."""
+{methodology}
+
+{mandate}"""

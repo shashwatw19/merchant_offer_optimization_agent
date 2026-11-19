@@ -32,32 +32,46 @@ APP_NAME = "merchant_offer_app"
 USER_ID = "merchant_user"
 MODEL_NAME = config.agent.model
 
-agent = LlmAgent(
-    name=config.agent.name,
-    model=MODEL_NAME,
-    instruction=get_system_instruction(),
-    tools=[
-        get_campaign_terms,
-        get_campaign_performance,
-        get_spend_distribution,
-        get_customer_reviews,
-        get_merchant_feedback,
-        get_delivery_metrics,
-        get_comparable_campaigns,
-        validate_proposal,
-        simulate_campaign_change,
-    ],
-)
+_RULE_RUNNERS: Dict[str, InMemoryRunner] = {}
 
+
+def get_runner_for_rule(rule_id: Optional[str] = None) -> InMemoryRunner:
+    """Return an InMemoryRunner configured with the rule-specific Playbook system instruction."""
+    clean_rule = (rule_id or "DEFAULT").upper()
+    if clean_rule not in _RULE_RUNNERS:
+        instruction = get_system_instruction(clean_rule)
+        rule_agent = LlmAgent(
+            name=f"{config.agent.name}_{clean_rule.lower()}",
+            model=MODEL_NAME,
+            instruction=instruction,
+            tools=[
+                get_campaign_terms,
+                get_campaign_performance,
+                get_spend_distribution,
+                get_customer_reviews,
+                get_merchant_feedback,
+                get_delivery_metrics,
+                get_comparable_campaigns,
+                validate_proposal,
+                simulate_campaign_change,
+            ],
+        )
+        _RULE_RUNNERS[clean_rule] = InMemoryRunner(agent=rule_agent, app_name=APP_NAME)
+    return _RULE_RUNNERS[clean_rule]
+
+
+# Default runner and agent references for backward compatibility
+runner = get_runner_for_rule("DEFAULT")
+agent = runner.agent
 root_agent = agent
-runner = InMemoryRunner(agent=agent, app_name=APP_NAME)
 tracer = ExecutionTracer()
 
 
-async def get_or_create_session(user_id: str, session_id: str):
+async def get_or_create_session(user_id: str, session_id: str, runner_instance: Optional[InMemoryRunner] = None):
     """Retrieve an existing session or create a new isolated session."""
+    active_runner = runner_instance or runner
     try:
-        session = await runner.session_service.get_session(
+        session = await active_runner.session_service.get_session(
             app_name=APP_NAME, user_id=user_id, session_id=session_id
         )
         if session:
@@ -65,7 +79,7 @@ async def get_or_create_session(user_id: str, session_id: str):
     except Exception:
         pass
 
-    return await runner.session_service.create_session(
+    return await active_runner.session_service.create_session(
         app_name=APP_NAME, user_id=user_id, session_id=session_id
     )
 
@@ -190,14 +204,16 @@ async def process_alert_async(
     exec_id = execution_id or generate_execution_id(alert_id, run_number=resolved_run_num)
     session_id = f"session_alert_{alert_id}"
 
-    session = await get_or_create_session(USER_ID, session_id)
+    rule_id = alert.get("rule_id", "DEFAULT")
+    rule_runner = get_runner_for_rule(rule_id)
+    session = await get_or_create_session(USER_ID, session_id, runner_instance=rule_runner)
     prompt = format_investigation_prompt(alert)
 
     content = types.Content(role="user", parts=[types.Part(text=prompt)])
     collector = ExecutionMetricsCollector(model_name=MODEL_NAME, alert_id=alert_id)
 
     try:
-        async for event in runner.run_async(
+        async for event in rule_runner.run_async(
             user_id=USER_ID,
             session_id=session.id,
             new_message=content,

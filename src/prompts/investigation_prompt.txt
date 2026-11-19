@@ -4,9 +4,8 @@ ALERT DETAILS:
 {alert_json}
 
 INVESTIGATION MANDATE:
-1. Retrieve campaign terms and baseline performance.
-2. Retrieve merchant spend distribution and delivery metrics.
-3. Retrieve dated customer reviews and merchant operational feedback notes.
-4. Formulate verified facts and testable hypotheses.
-5. If proposing a spend threshold adjustment, validate it with validate_proposal and evaluate with simulate_campaign_change.
-6. Return a complete, valid JSON InvestigationReport matching the output contract.
+1. Follow the specialized Playbook methodology for this alert's rule (R1: Spend Friction, R2: Operational Disruption, R3: Audience Cannibalization).
+2. Retrieve the required factual evidence using the appropriate tools.
+3. Formulate verified facts and testable hypotheses with explicit citations.
+4. STRICT CONSTRAINT: Do NOT propose spend threshold adjustments or call validate_proposal / simulate_campaign_change if operational disruption (R2) or audience targeting mismatch (R3) is diagnosed.
+5. Return a complete, valid JSON InvestigationReport matching the output contract.
