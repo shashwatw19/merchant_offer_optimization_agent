@@ -1,21 +1,21 @@
-/* ==========================================================
+﻿/* ==========================================================
    PROJECT : prj-imp-act-campaign
 
    SOURCE
    -------
-   prj-imp-act-campaign.offers_bronze.customer_reviews_raw
+   prj-imp-act-campaign.card_bronze.customer_reviews_raw
 
    TARGET
    -------
-   prj-imp-act-campaign.offers_silver.customer_reviews
+   prj-imp-act-campaign.card_silver.customer_reviews
 
    FK LOOKUP TABLE
    ---------------
-   prj-imp-act-campaign.offers_silver.merchants
+   prj-imp-act-campaign.card_silver.merchants
 
    ERROR TABLE
    -----------
-   prj-imp-act-campaign.offers_silver.invalid_records
+   prj-imp-act-campaign.card_silver.invalid_records
 
    AUDIT COLUMNS
    -------------
@@ -29,7 +29,7 @@
 ========================================================== */
 
 CREATE TABLE IF NOT EXISTS
-`prj-imp-act-campaign.offers_silver.customer_reviews`
+`prj-imp-act-campaign.card_silver.customer_reviews`
 (
     review_id STRING NOT NULL,
     merchant_id STRING NOT NULL,
@@ -118,10 +118,10 @@ WITH raw_data AS (
         ) AS rn
 
     FROM
-    `prj-imp-act-campaign.offers_bronze.customer_reviews_raw` r
+    `prj-imp-act-campaign.card_bronze.customer_reviews_raw` r
 
     LEFT JOIN
-    `prj-imp-act-campaign.offers_silver.merchants` m
+    `prj-imp-act-campaign.card_silver.merchants` m
         ON TRIM(r.merchant_id) = m.merchant_id
 
 )
@@ -183,7 +183,7 @@ FROM raw_data;
 ========================================================== */
 
 INSERT INTO
-`prj-imp-act-campaign.offers_silver.invalid_records`
+`prj-imp-act-campaign.card_silver.invalid_records`
 (
     table_name,
     record_id,
@@ -217,7 +217,7 @@ WHERE ARRAY_LENGTH(errors) > 0;
 ========================================================== */
 
 MERGE
-`prj-imp-act-campaign.offers_silver.customer_reviews` T
+`prj-imp-act-campaign.card_silver.customer_reviews` T
 
 USING (
 

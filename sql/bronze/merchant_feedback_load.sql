@@ -1,4 +1,4 @@
-CREATE OR REPLACE EXTERNAL TABLE `prj-imp-act-campaign.offers_bronze.ext_merchant_feedback`
+﻿CREATE OR REPLACE EXTERNAL TABLE `prj-imp-act-campaign.card_bronze.ext_merchant_feedback`
 (
     feedback_id STRING,
     merchant_id STRING,
@@ -14,7 +14,7 @@ OPTIONS (
     uris = ['gs://prj-imp-act-campaign-data/raw_data/merchant_feedback.csv']
 );
 
-CREATE TABLE IF NOT EXISTS `prj-imp-act-campaign.offers_bronze.merchant_feedback_raw`
+CREATE TABLE IF NOT EXISTS `prj-imp-act-campaign.card_bronze.merchant_feedback_raw`
 (
     feedback_id STRING,
     merchant_id STRING,
@@ -27,7 +27,7 @@ CREATE TABLE IF NOT EXISTS `prj-imp-act-campaign.offers_bronze.merchant_feedback
     ingestion_ts STRING
 );
 
-INSERT INTO `prj-imp-act-campaign.offers_bronze.merchant_feedback_raw`
+INSERT INTO `prj-imp-act-campaign.card_bronze.merchant_feedback_raw`
 (
     feedback_id,
     merchant_id,
@@ -49,4 +49,5 @@ SELECT
     CAST(verification_status AS STRING),
     @batch_id,
     @ingestion_ts
-FROM `prj-imp-act-campaign.offers_bronze.ext_merchant_feedback`;
+FROM `prj-imp-act-campaign.card_bronze.ext_merchant_feedback`;
+

@@ -1,4 +1,4 @@
-import pytest
+﻿import pytest
 from agents.agent import (
     agent,
     extract_json_report,
@@ -91,3 +91,4 @@ def test_tracer_writes_valid_jsonl(tmp_path):
         assert "A1001" in line
         assert "CMP131" in line
         assert "get_campaign_terms" in line
+

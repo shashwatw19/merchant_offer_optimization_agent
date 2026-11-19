@@ -1,4 +1,4 @@
-import json
+﻿import json
 from unittest.mock import MagicMock
 import pytest
 from agents.tools.report_tools import convert_json_report_to_markdown
@@ -97,3 +97,4 @@ def test_tool_nonexistent_local_file():
     res = convert_json_report_to_markdown(json_path="nonexistent_report_xyz.json")
     assert res["success"] is False
     assert "not found" in res["error"]
+

@@ -1,4 +1,4 @@
-CREATE OR REPLACE EXTERNAL TABLE `prj-imp-act-campaign.offers_bronze.ext_customer_reviews`
+﻿CREATE OR REPLACE EXTERNAL TABLE `prj-imp-act-campaign.card_bronze.ext_customer_reviews`
 (
     review_id STRING,
     merchant_id STRING,
@@ -14,7 +14,7 @@ OPTIONS (
     uris = ['gs://prj-imp-act-campaign-data/raw_data/customer_reviews.csv']
 );
 
-CREATE TABLE IF NOT EXISTS `prj-imp-act-campaign.offers_bronze.customer_reviews_raw`
+CREATE TABLE IF NOT EXISTS `prj-imp-act-campaign.card_bronze.customer_reviews_raw`
 (
     review_id STRING,
     merchant_id STRING,
@@ -27,7 +27,7 @@ CREATE TABLE IF NOT EXISTS `prj-imp-act-campaign.offers_bronze.customer_reviews_
     ingestion_ts STRING
 );
 
-INSERT INTO `prj-imp-act-campaign.offers_bronze.customer_reviews_raw`
+INSERT INTO `prj-imp-act-campaign.card_bronze.customer_reviews_raw`
 (
     review_id,
     merchant_id,
@@ -49,4 +49,4 @@ SELECT
     CAST(source_ref AS STRING),
     @batch_id,
     @ingestion_ts
-FROM `prj-imp-act-campaign.offers_bronze.ext_customer_reviews`;
+FROM `prj-imp-act-campaign.card_bronze.ext_customer_reviews`;

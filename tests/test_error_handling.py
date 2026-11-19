@@ -1,4 +1,4 @@
-import pytest
+﻿import pytest
 from core.exceptions import DatabaseError
 import core.bigquery_client as bq_mod
 import agents.tools.bigquery_tools as bq_tools
@@ -35,3 +35,4 @@ def test_simulate_handles_nonexistent_campaign(monkeypatch):
     res = sim.simulate("CMP_NONEXISTENT", proposed_min_spend=1500.0)
     assert res["success"] is False
     assert "not found or transaction data missing" in res["error"]
+

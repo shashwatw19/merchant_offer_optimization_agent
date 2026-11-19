@@ -1,4 +1,4 @@
-CREATE OR REPLACE TABLE `prj-imp-act-campaign.offers_gold.gold_campaign_results` AS
+﻿CREATE OR REPLACE TABLE `prj-imp-act-campaign.card_gold.gold_campaign_results` AS
 
 WITH campaign_base AS (
 
@@ -23,7 +23,7 @@ WITH campaign_base AS (
             ELSE 1
         END AS corrected_max_redemptions_per_customer
 
-    FROM `prj-imp-act-campaign.offers_silver.campaigns`
+    FROM `prj-imp-act-campaign.card_silver.campaigns`
 ),
 
 sent_summary AS (
@@ -40,7 +40,7 @@ sent_summary AS (
             END
         ) AS delivered_customer_count
 
-    FROM `prj-imp-act-campaign.offers_silver.offer_sends`
+    FROM `prj-imp-act-campaign.card_silver.offer_sends`
 
     GROUP BY campaign_id
 ),
@@ -63,7 +63,7 @@ redemption_summary AS (
             2
         ) AS cashback_amt_awarded
 
-    FROM `prj-imp-act-campaign.offers_silver.offer_redemptions`
+    FROM `prj-imp-act-campaign.card_silver.offer_redemptions`
     WHERE UPPER(status) = 'AWARDED'
 
     GROUP BY campaign_id
@@ -81,9 +81,9 @@ txn_summary AS (
             2
         ) AS posted_txn_amount
 
-    FROM `prj-imp-act-campaign.offers_silver.transactions` t
+    FROM `prj-imp-act-campaign.card_silver.transactions` t
 
-    INNER JOIN `prj-imp-act-campaign.offers_silver.offer_redemptions` r
+    INNER JOIN `prj-imp-act-campaign.card_silver.offer_redemptions` r
         ON t.txn_id = r.txn_id
 
     WHERE UPPER(t.txn_status) = 'POSTED'
@@ -144,3 +144,4 @@ LEFT JOIN redemption_summary rs
 
 LEFT JOIN txn_summary ts
     ON cb.campaign_id = ts.campaign_id;
+

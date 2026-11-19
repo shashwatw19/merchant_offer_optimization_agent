@@ -1,22 +1,22 @@
-/* ==========================================================
+﻿/* ==========================================================
    PROJECT : prj-imp-act-campaign
 
    SOURCE
    -------
-   prj-imp-act-campaign.offers_bronze.offer_sends_raw
+   prj-imp-act-campaign.card_bronze.offer_sends_raw
 
    TARGET
    -------
-   prj-imp-act-campaign.offers_silver.offer_sends
+   prj-imp-act-campaign.card_silver.offer_sends
 
    FK LOOKUP TABLES
    ----------------
-   prj-imp-act-campaign.offers_silver.campaigns
-   prj-imp-act-campaign.offers_silver.customers
+   prj-imp-act-campaign.card_silver.campaigns
+   prj-imp-act-campaign.card_silver.customers
 
    ERROR TABLE
    -----------
-   prj-imp-act-campaign.offers_silver.invalid_records
+   prj-imp-act-campaign.card_silver.invalid_records
 
    AUDIT COLUMNS
    -------------
@@ -30,7 +30,7 @@
 ========================================================== */
 
 CREATE TABLE IF NOT EXISTS
-`prj-imp-act-campaign.offers_silver.offer_sends`
+`prj-imp-act-campaign.card_silver.offer_sends`
 (
     send_id STRING NOT NULL,
     campaign_id STRING NOT NULL,
@@ -99,14 +99,14 @@ WITH raw_data AS (
         ) AS rn
 
     FROM
-    `prj-imp-act-campaign.offers_bronze.offer_sends_raw` r
+    `prj-imp-act-campaign.card_bronze.offer_sends_raw` r
 
     LEFT JOIN
-    `prj-imp-act-campaign.offers_silver.campaigns` camp
+    `prj-imp-act-campaign.card_silver.campaigns` camp
         ON TRIM(r.campaign_id) = camp.campaign_id
 
     LEFT JOIN
-    `prj-imp-act-campaign.offers_silver.customers` cust
+    `prj-imp-act-campaign.card_silver.customers` cust
         ON TRIM(r.customer_id) = cust.customer_id
 
 )
@@ -170,7 +170,7 @@ FROM raw_data;
 ========================================================== */
 
 INSERT INTO
-`prj-imp-act-campaign.offers_silver.invalid_records`
+`prj-imp-act-campaign.card_silver.invalid_records`
 (
     table_name,
     record_id,
@@ -204,7 +204,7 @@ WHERE ARRAY_LENGTH(errors) > 0;
 ========================================================== */
 
 MERGE
-`prj-imp-act-campaign.offers_silver.offer_sends` T
+`prj-imp-act-campaign.card_silver.offer_sends` T
 
 USING (
 

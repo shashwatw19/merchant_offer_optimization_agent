@@ -1,4 +1,4 @@
-"""Unit tests for the Evidence Verification Service."""
+﻿"""Unit tests for the Evidence Verification Service."""
 
 from unittest.mock import MagicMock, patch
 import pytest
@@ -27,7 +27,7 @@ def test_resolve_gold_results_evidence(resolver):
         "cashback_amt_awarded": 1200.0,
     }]
     with patch("core.bigquery_client.execute_query", return_value=mock_row):
-        res = resolver.resolve_evidence("bq:offers_gold.gold_campaign_results:CMP131", campaign_id="CMP131")
+        res = resolver.resolve_evidence("bq:card_gold.gold_campaign_results:CMP131", campaign_id="CMP131")
         assert res["success"] is True
         assert res["target_type"] == "GOLD_AGGREGATE"
         assert res["resolved_id"] == "CMP131"
@@ -47,7 +47,7 @@ def test_resolve_campaign_terms_evidence(resolver):
         "ingestion_ts": "2026-11-11T05:00:00",
     }]
     with patch("core.bigquery_client.execute_query", return_value=mock_campaign):
-        res = resolver.resolve_evidence("bq:offers_silver.campaigns:CMP131", campaign_id="CMP131")
+        res = resolver.resolve_evidence("bq:card_silver.campaigns:CMP131", campaign_id="CMP131")
         assert res["success"] is True
         assert res["target_type"] == "CAMPAIGN_TERMS"
         assert "campaigns_raw" in res["source_table"]
@@ -102,7 +102,8 @@ def test_mask_sensitive_data(resolver):
 
 def test_resolve_query_error_handling(resolver):
     with patch("core.bigquery_client.execute_query", side_effect=RuntimeError("BigQuery timeout")):
-        res = resolver.resolve_evidence("bq:offers_silver.campaigns:CMP999", campaign_id="CMP999")
+        res = resolver.resolve_evidence("bq:card_silver.campaigns:CMP999", campaign_id="CMP999")
         assert res["success"] is False
         assert res["verification_verdict"] == "DATA_UNAVAILABLE"
         assert "BigQuery timeout" in res["error"]
+

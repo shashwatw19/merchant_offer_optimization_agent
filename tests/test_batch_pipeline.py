@@ -1,7 +1,7 @@
 import json
 from unittest.mock import AsyncMock
 import pytest
-from agents.run_alert_pipeline import process_alert_batch
+from agents.run_alert_investigation_pipeline import process_alert_batch
 
 
 @pytest.mark.asyncio
@@ -33,7 +33,7 @@ async def test_process_alert_batch_success(tmp_path, monkeypatch):
         },
     }
 
-    import agents.run_alert_pipeline as pipeline_mod
+    import agents.run_alert_investigation_pipeline as pipeline_mod
     monkeypatch.setattr(pipeline_mod, "process_alert_async", AsyncMock(return_value=mock_result))
     monkeypatch.setattr(pipeline_mod, "update_alert_status", lambda aid, status, summary=None: True)
 
@@ -83,7 +83,7 @@ async def test_process_alert_batch_error_handling(tmp_path, monkeypatch):
 
     status_updates = []
 
-    import agents.run_alert_pipeline as pipeline_mod
+    import agents.run_alert_investigation_pipeline as pipeline_mod
     monkeypatch.setattr(pipeline_mod, "process_alert_async", AsyncMock(return_value=mock_fail))
     monkeypatch.setattr(pipeline_mod, "update_alert_status", lambda aid, status, summary=None: status_updates.append((aid, status)))
 
@@ -91,3 +91,4 @@ async def test_process_alert_batch_error_handling(tmp_path, monkeypatch):
     assert len(results) == 1
     assert results[0]["success"] is False
     assert ("A9999", "ERROR") in status_updates
+

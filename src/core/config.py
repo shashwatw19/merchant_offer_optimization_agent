@@ -56,10 +56,10 @@ class ResilienceConfig(BaseConfigModel):
 class GCPConfig(BaseConfigModel):
     project_id: str = "prj-imp-act-campaign"
     location: str = "asia-south1"
-    bronze_dataset: str = "offers_bronze"
-    silver_dataset: str = "offers_silver"
-    gold_dataset: str = "offers_gold"
-    alerts_table: str = "offers_gold.alerts"
+    bronze_dataset: str = "card_bronze"
+    silver_dataset: str = "card_silver"
+    gold_dataset: str = "card_gold"
+    alerts_table: str = "card_gold.alerts"
 
 
 class GuardrailsConfig(BaseConfigModel):

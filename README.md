@@ -16,7 +16,7 @@ The system automates the investigation of underperforming merchant campaigns, es
                                                    |
                                                    v
 +------------------------+             +-----------+------------+             +------------------------+
-|    alert.py (CLI)      |             |     src/core/config    |             |  BigQuery: offers_gold |
+| run_alert_detection.py |             |     src/core/config    |             |  BigQuery: card_gold |
 | Deterministic Rules    +------------>|  Pydantic AppConfig    |<----------->| - gold_campaign_results|
 | R1, R2, R3             |             +-----------+------------+             | - gold_merchant_profile|
 +------------------------+                         |                          | - alerts               |
@@ -64,12 +64,12 @@ Alerts serve as investigation triggers computed deterministically in SQL/Python:
 
 All tools are read-only, strongly typed, and return source evidence references:
 
-1. **`get_campaign_terms(campaign_id)`**: Retrieves configured minimum spend, cashback percent, cap, and budget from `offers_silver.campaigns`.
-2. **`get_campaign_performance(campaign_id)`**: Retrieves targeted, delivered, and awarded redemptions from `offers_gold.gold_campaign_results`.
-3. **`get_spend_distribution(merchant_id)`**: Retrieves merchant ticket size percentiles, average bill, and median spend from `offers_gold.gold_merchant_spend_profile`.
-4. **`get_customer_reviews(merchant_id, limit)`**: Retrieves dated customer reviews with review IDs and ratings from `offers_silver.customer_reviews`.
-5. **`get_merchant_feedback(merchant_id, limit)`**: Retrieves relationship manager notes and incident logs from `offers_silver.merchant_feedback`.
-6. **`get_delivery_metrics(campaign_id)`**: Computes notification delivery success rates and customer-outlet city mismatch percentages from `offers_silver.offer_sends`.
+1. **`get_campaign_terms(campaign_id)`**: Retrieves configured minimum spend, cashback percent, cap, and budget from `card_silver.campaigns`.
+2. **`get_campaign_performance(campaign_id)`**: Retrieves targeted, delivered, and awarded redemptions from `card_gold.gold_campaign_results`.
+3. **`get_spend_distribution(merchant_id)`**: Retrieves merchant ticket size percentiles, average bill, and median spend from `card_gold.gold_merchant_spend_profile`.
+4. **`get_customer_reviews(merchant_id, limit)`**: Retrieves dated customer reviews with review IDs and ratings from `card_silver.customer_reviews`.
+5. **`get_merchant_feedback(merchant_id, limit)`**: Retrieves relationship manager notes and incident logs from `card_silver.merchant_feedback`.
+6. **`get_delivery_metrics(campaign_id)`**: Computes notification delivery success rates and customer-outlet city mismatch percentages from `card_silver.offer_sends`.
 7. **`get_comparable_campaigns(campaign_id, limit)`**: Benchmarks campaign performance against peer merchants in the same category.
 8. **`validate_proposal(proposed_min_spend, cashback_pct, cashback_cap)`**: Checks proposed changes against policy allowlists and budget ceilings defined in `campaign.yaml`.
 9. **`simulate_campaign_change(campaign_id, min_spend)`**: Replays proposed spend thresholds strictly against *targeted customers' historical posted card payments*. Computes retrospective liability deltas and budget safety without forecasting future uplift.
@@ -98,11 +98,11 @@ Investigations emit a validated JSON report adhering to this contract:
   "findings": [
     {
       "observation": "Redemption rate is 4.0% against 150 targeted customers.",
-      "evidence": ["bq:prj-imp-act-campaign.offers_gold.gold_campaign_results:CMP131"]
+      "evidence": ["bq:prj-imp-act-campaign.card_gold.gold_campaign_results:CMP131"]
     },
     {
       "observation": "Median merchant card ticket size is ₹750 against a ₹2,000 threshold.",
-      "evidence": ["bq:prj-imp-act-campaign.offers_gold.gold_merchant_spend_profile:M001"]
+      "evidence": ["bq:prj-imp-act-campaign.card_gold.gold_merchant_spend_profile:M001"]
     }
   ],
   "hypotheses": [
@@ -139,22 +139,22 @@ All 33 unit and workflow tests validate configuration loading, deterministic rul
 ### Detecting Alerts (CLI)
 ```bash
 # Dry run detection without modifying BigQuery
-python alert.py --dry-run
+python src/agents/run_alert_detection.py --dry-run
 
 # Run a specific rule
-python alert.py --rule R1 --dry-run
+python src/agents/run_alert_detection.py --rule R1 --dry-run
 
-# Execute against BigQuery and insert alerts into offers_gold.alerts
-python alert.py --project prj-imp-act-campaign
+# Execute against BigQuery and insert alerts into card_gold.alerts
+python src/agents/run_alert_detection.py --project prj-imp-act-campaign
 ```
 
 ### Running the Batch Investigation Pipeline
 ```bash
 # Process up to 5 pending alerts and save JSON reports
-python src/agents/run_alert_pipeline.py --limit 5 --output-dir output
+python src/agents/run_alert_investigation_pipeline.py --limit 5 --output-dir output
 
 # Dry run mode (does not update BigQuery alert status)
-python src/agents/run_alert_pipeline.py --limit 2 --dry-run
+python src/agents/run_alert_investigation_pipeline.py --limit 2 --dry-run
 ```
 
 ---
@@ -179,3 +179,4 @@ guardrails:
   no_customer_contact: true
   no_future_uplift_predictions: true
 ```
+

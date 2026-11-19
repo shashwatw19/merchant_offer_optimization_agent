@@ -1,4 +1,4 @@
-import pytest
+﻿import pytest
 from pydantic import ValidationError
 from domain.contracts import AlertPayload, InvestigationReport, Finding, Hypothesis, Proposal
 
@@ -8,8 +8,8 @@ def test_investigation_report_valid_contract():
         alert_id="A1001",
         campaign_id="CMP131",
         findings=[
-            Finding(observation="Redemption 4%", evidence=["bq:offers_gold.gold_campaign_results:CMP131"]),
-            Finding(observation="Median merchant bill ₹750", evidence=["bq:offers_gold.gold_merchant_spend_profile:M001"]),
+            Finding(observation="Redemption 4%", evidence=["bq:card_gold.gold_campaign_results:CMP131"]),
+            Finding(observation="Median merchant bill ₹750", evidence=["bq:card_gold.gold_merchant_spend_profile:M001"]),
         ],
         hypotheses=[
             Hypothesis(text="Threshold of ₹2000 is restrictive", status="UNVERIFIED")
@@ -49,3 +49,4 @@ def test_investigation_report_requires_mandatory_fields():
     with pytest.raises(ValidationError):
         # Missing alert_id and campaign_id
         InvestigationReport()
+

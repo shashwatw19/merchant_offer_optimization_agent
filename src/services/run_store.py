@@ -8,7 +8,7 @@ from core.time_utils import now_ist_str
 
 
 def ensure_agent_runs_table() -> None:
-    """Ensure the offers_gold.agent_runs table exists in BigQuery for execution telemetry."""
+    """Ensure the card_gold.agent_runs table exists in BigQuery for execution telemetry."""
     config = get_config()
     project = config.gcp.project_id
     gold = config.gcp.gold_dataset
@@ -69,7 +69,7 @@ def record_agent_run(
     started_at: Optional[str] = None,
     ended_at: Optional[str] = None,
 ) -> bool:
-    """Persist an independent agent run record to BigQuery offers_gold.agent_runs.
+    """Persist an independent agent run record to BigQuery card_gold.agent_runs.
 
     Non-blocking: Logs failure if BigQuery write encounters an issue without interrupting the workflow.
     """
@@ -138,7 +138,7 @@ def fetch_agent_runs(
     alert_id: Optional[str] = None,
     campaign_id: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
-    """Query recent agent execution records from BigQuery offers_gold.agent_runs."""
+    """Query recent agent execution records from BigQuery card_gold.agent_runs."""
     config = get_config()
     project = config.gcp.project_id
     gold = config.gcp.gold_dataset

@@ -1,7 +1,7 @@
-/* ==========================================================
+﻿/* ==========================================================
    PROJECT: prj-imp-act-campaign
-   SOURCE : offers_bronze.merchants_raw
-   TARGET : offers_silver.merchants
+   SOURCE : card_bronze.merchants_raw
+   TARGET : card_silver.merchants
 
    AUDIT COLUMNS
    -------------
@@ -97,7 +97,7 @@ VALUES(S.city_id,S.city_name);
 ========================================================== */
 
 CREATE TABLE IF NOT EXISTS
-`prj-imp-act-campaign.offers_silver.merchants`
+`prj-imp-act-campaign.card_silver.merchants`
 (
     merchant_id STRING NOT NULL,
     name STRING NOT NULL,
@@ -139,7 +139,7 @@ WITH raw_data AS (
         ) AS rn
 
     FROM
-    `prj-imp-act-campaign.offers_bronze.merchants_raw` r
+    `prj-imp-act-campaign.card_bronze.merchants_raw` r
 ),
 
 city_standardized AS (
@@ -231,7 +231,7 @@ FROM validated;
 ========================================================== */
 
 INSERT INTO
-`prj-imp-act-campaign.offers_silver.invalid_records`
+`prj-imp-act-campaign.card_silver.invalid_records`
 (
     table_name,
     record_id,
@@ -265,7 +265,7 @@ WHERE ARRAY_LENGTH(errors) > 0;
 ========================================================== */
 
 MERGE
-`prj-imp-act-campaign.offers_silver.merchants` T
+`prj-imp-act-campaign.card_silver.merchants` T
 
 USING (
 

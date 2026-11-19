@@ -1,4 +1,4 @@
-CREATE OR REPLACE TABLE `prj-imp-act-campaign.offers_gold.gold_campaign_profile` AS
+﻿CREATE OR REPLACE TABLE `prj-imp-act-campaign.card_gold.gold_campaign_profile` AS
 
 WITH campaign_profile_base AS (
 
@@ -37,9 +37,9 @@ WITH campaign_profile_base AS (
 
         COALESCE(c.status, 'UNKNOWN') AS campaign_status
 
-    FROM `prj-imp-act-campaign.offers_silver.campaigns` c
+    FROM `prj-imp-act-campaign.card_silver.campaigns` c
 
-    LEFT JOIN `prj-imp-act-campaign.offers_silver.merchants` m
+    LEFT JOIN `prj-imp-act-campaign.card_silver.merchants` m
         ON m.merchant_id = c.merchant_id
 )
 
@@ -73,3 +73,4 @@ SELECT
     END AS quality_flag
 
 FROM campaign_profile_base cp;
+

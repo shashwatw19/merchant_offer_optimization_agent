@@ -1,4 +1,4 @@
-import datetime
+﻿import datetime
 import decimal
 import pytest
 from core.bigquery_client import make_serializable
@@ -90,3 +90,4 @@ def test_get_comparable_campaigns_tool(monkeypatch):
     assert res["success"] is True
     assert res["count"] == 1
     assert res["peer_campaigns"][0]["redemption_rate"] == 8.5
+

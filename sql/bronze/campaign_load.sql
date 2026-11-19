@@ -1,4 +1,4 @@
-CREATE OR REPLACE EXTERNAL TABLE `prj-imp-act-campaign.offers_bronze.ext_campaigns`
+﻿CREATE OR REPLACE EXTERNAL TABLE `prj-imp-act-campaign.card_bronze.ext_campaigns`
 (
   campaign_id STRING,
   merchant_id STRING,
@@ -19,7 +19,7 @@ OPTIONS (
   uris = ['gs://prj-imp-act-campaign-data/raw_data/campaigns.csv']
 );
 
-CREATE TABLE IF NOT EXISTS `prj-imp-act-campaign.offers_bronze.campaigns_raw`
+CREATE TABLE IF NOT EXISTS `prj-imp-act-campaign.card_bronze.campaigns_raw`
 (
   campaign_id STRING,
   merchant_id STRING,
@@ -37,7 +37,7 @@ CREATE TABLE IF NOT EXISTS `prj-imp-act-campaign.offers_bronze.campaigns_raw`
   ingestion_ts STRING
 );
 
-INSERT INTO `prj-imp-act-campaign.offers_bronze.campaigns_raw`
+INSERT INTO `prj-imp-act-campaign.card_bronze.campaigns_raw`
 SELECT
   CAST(campaign_id AS STRING),
   CAST(merchant_id AS STRING),
@@ -53,4 +53,4 @@ SELECT
   CAST(status AS STRING),
   @batch_id,
   @ingestion_ts
-FROM `prj-imp-act-campaign.offers_bronze.ext_campaigns`;
+FROM `prj-imp-act-campaign.card_bronze.ext_campaigns`;

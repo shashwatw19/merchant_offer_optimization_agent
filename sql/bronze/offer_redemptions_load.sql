@@ -1,4 +1,4 @@
-CREATE OR REPLACE EXTERNAL TABLE `prj-imp-act-campaign.offers_bronze.ext_offer_redemptions`
+﻿CREATE OR REPLACE EXTERNAL TABLE `prj-imp-act-campaign.card_bronze.ext_offer_redemptions`
 (
     redemption_id STRING,
     txn_id STRING,
@@ -14,7 +14,7 @@ OPTIONS (
     uris = ['gs://prj-imp-act-campaign-data/raw_data/offer_redemptions.csv']
 );
 
-CREATE TABLE IF NOT EXISTS `prj-imp-act-campaign.offers_bronze.offer_redemptions_raw`
+CREATE TABLE IF NOT EXISTS `prj-imp-act-campaign.card_bronze.offer_redemptions_raw`
 (
     redemption_id STRING,
     txn_id STRING,
@@ -27,7 +27,7 @@ CREATE TABLE IF NOT EXISTS `prj-imp-act-campaign.offers_bronze.offer_redemptions
     ingestion_ts STRING
 );
 
-INSERT INTO `prj-imp-act-campaign.offers_bronze.offer_redemptions_raw`
+INSERT INTO `prj-imp-act-campaign.card_bronze.offer_redemptions_raw`
 (
     redemption_id,
     txn_id,
@@ -49,4 +49,4 @@ SELECT
     CAST(awarded_at AS STRING),
     @batch_id,
     @ingestion_ts
-FROM `prj-imp-act-campaign.offers_bronze.ext_offer_redemptions`;
+FROM `prj-imp-act-campaign.card_bronze.ext_offer_redemptions`;

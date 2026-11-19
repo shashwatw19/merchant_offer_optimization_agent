@@ -1,0 +1,5 @@
+rule_id,parameter,value,description
+R1,redemption_rate_threshold,5.00,Maximum redemption rate percentage to trigger alert
+R2,min_p1_rate,10.00,Minimum period 1 redemption rate to qualify for drop check
+R2,drop_multiplier,0.50,Drop threshold multiplier comparing period 2 vs period 1
+R3,existing_customer_share_threshold,75.00,Minimum existing customer share percentage in acquisition campaigns

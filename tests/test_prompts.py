@@ -1,4 +1,4 @@
-import pytest
+﻿import pytest
 from prompts import get_system_instruction, get_investigation_prompt_template, format_investigation_prompt
 
 
@@ -20,3 +20,4 @@ def test_format_investigation_prompt():
     assert "A1001" in prompt
     assert "CMP131" in prompt
     assert "INVESTIGATION MANDATE" in prompt
+

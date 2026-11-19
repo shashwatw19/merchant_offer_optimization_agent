@@ -145,7 +145,7 @@ def _record_run_telemetry(
     tool_calls_trace: List[Dict[str, Any]],
     error: Optional[str] = None,
 ) -> None:
-    """Persist agent run execution telemetry to BigQuery table offers_gold.agent_runs."""
+    """Persist agent run execution telemetry to BigQuery table card_gold.agent_runs."""
     try:
         from services.run_store import record_agent_run
         record_agent_run(

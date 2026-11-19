@@ -1,4 +1,4 @@
-import pytest
+﻿import pytest
 from domain.simulator import HistoricalReplaySimulator
 from domain.policy import PolicyValidator
 import core.bigquery_client as bq_client
@@ -53,3 +53,4 @@ def test_simulator_calculates_deltas_correctly(monkeypatch):
     assert res["delta"]["additional_cashback"] == 2400.0
     assert res["budget_safe"] is True
     assert "disclaimer" in res
+

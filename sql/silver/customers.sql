@@ -1,7 +1,7 @@
-/* ==========================================================
+﻿/* ==========================================================
    PROJECT : prj-imp-act-campaign
-   SOURCE  : offers_bronze.customers_raw
-   TARGET  : offers_silver.customers
+   SOURCE  : card_bronze.customers_raw
+   TARGET  : card_silver.customers
 
    AUDIT COLUMNS
    -------------
@@ -15,7 +15,7 @@
 ========================================================== */
 
 CREATE TABLE IF NOT EXISTS
-`prj-imp-act-campaign.offers_silver.customers`
+`prj-imp-act-campaign.card_silver.customers`
 (
     customer_id STRING NOT NULL,
     city STRING,
@@ -74,7 +74,7 @@ WITH raw_data AS (
         ) AS rn
 
     FROM
-    `prj-imp-act-campaign.offers_bronze.customers_raw` r
+    `prj-imp-act-campaign.card_bronze.customers_raw` r
 ),
 
 city_standardized AS (
@@ -175,7 +175,7 @@ FROM validated;
 ========================================================== */
 
 INSERT INTO
-`prj-imp-act-campaign.offers_silver.invalid_records`
+`prj-imp-act-campaign.card_silver.invalid_records`
 (
     table_name,
     record_id,
@@ -209,7 +209,7 @@ WHERE ARRAY_LENGTH(errors) > 0;
 ========================================================== */
 
 MERGE
-`prj-imp-act-campaign.offers_silver.customers` T
+`prj-imp-act-campaign.card_silver.customers` T
 
 USING (
 
@@ -265,3 +265,4 @@ VALUES
     S.batch_id,
     S.ingested_at
 );
+

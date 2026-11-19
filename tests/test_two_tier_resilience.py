@@ -1,4 +1,4 @@
-import pytest
+﻿import pytest
 from unittest.mock import MagicMock
 from google.api_core import exceptions as g_exceptions
 
@@ -72,7 +72,7 @@ def test_tier1_client_fails_fast_on_permanent_error(monkeypatch):
 
     class MockClient:
         def query(self, sql, job_config=None, timeout=None):
-            raise g_exceptions.NotFound("Dataset offers_silver not found")
+            raise g_exceptions.NotFound("Dataset card_silver not found")
 
     monkeypatch.setattr(bq_client, "get_bigquery_client", lambda: MockClient())
 
@@ -148,3 +148,4 @@ def test_tier2_tool_reports_permanent_error_to_llm(monkeypatch):
     assert res["attempts_made"] == 1
     assert res["remaining_attempts"] == 0
     assert "Permanent query, schema, or missing record error" in res["suggested_action"]
+

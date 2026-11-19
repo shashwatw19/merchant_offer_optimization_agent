@@ -1,6 +1,6 @@
 from unittest.mock import MagicMock
 import pytest
-import alert
+import agents.run_alert_detection as alert
 
 
 def test_alert_cli_dry_run_collects_alerts(monkeypatch):
@@ -84,3 +84,4 @@ def test_alert_cli_suppresses_recently_resolved_alert_in_cooldown(monkeypatch):
 
     alerts = alert.run_all_alerts(project_id="test-proj", selected_rule="R1", filter_active=True, cooldown_minutes=2.0)
     assert len(alerts) == 0  # In cooldown -> suppressed!
+

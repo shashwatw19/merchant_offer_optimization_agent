@@ -1,4 +1,4 @@
-CREATE OR REPLACE TABLE `prj-imp-act-campaign.offers_gold.gold_merchant_spend_profile` AS
+﻿CREATE OR REPLACE TABLE `prj-imp-act-campaign.card_gold.gold_merchant_spend_profile` AS
 
 WITH merchant_txn AS (
 
@@ -63,9 +63,9 @@ WITH merchant_txn AS (
             END
         ) AS distinct_customer_count
 
-    FROM `prj-imp-act-campaign.offers_silver.merchants` m
+    FROM `prj-imp-act-campaign.card_silver.merchants` m
 
-    LEFT JOIN `prj-imp-act-campaign.offers_silver.transactions` t
+    LEFT JOIN `prj-imp-act-campaign.card_silver.transactions` t
         ON t.merchant_id = m.merchant_id
 
     GROUP BY
@@ -106,3 +106,4 @@ SELECT
     END AS quality_flag
 
 FROM merchant_txn mt;
+

@@ -1,4 +1,4 @@
-CREATE OR REPLACE EXTERNAL TABLE `prj-imp-act-campaign.offers_bronze.ext_customers`
+﻿CREATE OR REPLACE EXTERNAL TABLE `prj-imp-act-campaign.card_bronze.ext_customers`
 (
     customer_id STRING,
     city STRING,
@@ -12,7 +12,7 @@ OPTIONS (
     uris = ['gs://prj-imp-act-campaign-data/raw_data/customers.csv']
 );
 
-CREATE TABLE IF NOT EXISTS `prj-imp-act-campaign.offers_bronze.customers_raw`
+CREATE TABLE IF NOT EXISTS `prj-imp-act-campaign.card_bronze.customers_raw`
 (
     customer_id STRING,
     city STRING,
@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS `prj-imp-act-campaign.offers_bronze.customers_raw`
     ingestion_ts STRING
 );
 
-INSERT INTO `prj-imp-act-campaign.offers_bronze.customers_raw`
+INSERT INTO `prj-imp-act-campaign.card_bronze.customers_raw`
 (
     customer_id,
     city,
@@ -41,4 +41,4 @@ SELECT
     CAST(card_status AS STRING),
     @batch_id,
     @ingestion_ts
-FROM `prj-imp-act-campaign.offers_bronze.ext_customers`;
+FROM `prj-imp-act-campaign.card_bronze.ext_customers`;

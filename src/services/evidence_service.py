@@ -1,7 +1,7 @@
 """Evidence Verification Service.
 
 Resolves evidence citations from agent investigation reports (e.g.
-'bq:offers_silver.campaigns:CMP131', 'review_id: REV_108', 'bq:gold_results')
+'bq:card_silver.campaigns:CMP131', 'review_id: REV_108', 'bq:gold_results')
 to the underlying Bronze raw tables in BigQuery, retrieves the exact source
 records, and returns structured provenance data for verification.
 """

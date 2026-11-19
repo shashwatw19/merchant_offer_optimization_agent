@@ -1,4 +1,4 @@
-import pytest
+﻿import pytest
 from domain.policy import PolicyValidator
 
 
@@ -62,3 +62,4 @@ def test_policy_validator_invalid_types():
     res = validator.validate_proposal("invalid", 10, 200)
     assert res["allowed"] is False
     assert "Invalid input types" in res["reason"]
+

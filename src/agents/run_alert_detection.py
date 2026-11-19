@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Set
 
 # Ensure src is on sys.path
-SRC_DIR = Path(__file__).resolve().parent / "src"
+SRC_DIR = Path(__file__).resolve().parent.parent
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
@@ -132,7 +132,7 @@ def run_all_alerts(
 
 
 def save_alerts_to_bigquery(alerts: List[Dict[str, Any]], project_id: str) -> None:
-    """Insert triggered alerts into BigQuery offers_gold.alerts table via batch load job."""
+    """Insert triggered alerts into BigQuery card_gold.alerts table via batch load job."""
     if not alerts:
         return
 

@@ -48,10 +48,10 @@ resilience:
 gcp:
   project_id: prj-imp-act-campaign
   location: asia-south1
-  bronze_dataset: offers_bronze
-  silver_dataset: offers_silver
-  gold_dataset: offers_gold
-  alerts_table: offers_gold.alerts
+  bronze_dataset: card_bronze
+  silver_dataset: card_silver
+  gold_dataset: card_gold
+  alerts_table: card_gold.alerts
 
 guardrails:
   read_only_tools: true

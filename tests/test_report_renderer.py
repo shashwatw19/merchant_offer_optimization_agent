@@ -1,4 +1,4 @@
-import json
+﻿import json
 import pytest
 from core.exceptions import ReportRenderingError
 from domain.contracts import Finding, Hypothesis, InvestigationReport, Proposal
@@ -17,11 +17,11 @@ def sample_report_dict():
         "findings": [
             {
                 "observation": "Audience redemption rate is 4.0%, below 5.0% threshold.",
-                "evidence": ["bq:offers_gold.gold_campaign_results:CMP131"],
+                "evidence": ["bq:card_gold.gold_campaign_results:CMP131"],
             },
             {
                 "observation": "Median customer transaction amount is ₹750, whereas offer min_spend is ₹2000.",
-                "evidence": ["bq:offers_gold.gold_merchant_spend_profile:M001"],
+                "evidence": ["bq:card_gold.gold_merchant_spend_profile:M001"],
             },
         ],
         "hypotheses": [
@@ -64,7 +64,7 @@ def test_render_complete_report(sample_report_dict):
     assert "Executive Summary" in md
     assert "Spice Route Kitchen" in md
     assert "4.0%, below 5.0%" in md
-    assert "bq:offers_gold.gold_campaign_results:CMP131" in md
+    assert "bq:card_gold.gold_campaign_results:CMP131" in md
     assert "SUPPORTED" in md
     assert "REFUTED" in md
     assert "UNVERIFIED" in md
@@ -133,3 +133,4 @@ def test_render_currency_and_pct_formatting():
     assert service._format_currency(None) == "N/A"
     assert service._format_pct(10.0) == "10.00%"
     assert service._format_pct(None) == "N/A"
+

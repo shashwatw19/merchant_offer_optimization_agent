@@ -1,4 +1,4 @@
-import os
+﻿import os
 import pytest
 from core.config import AppConfig, load_config, get_config
 
@@ -23,3 +23,4 @@ def test_config_env_overrides(monkeypatch):
     config = load_config()
     assert config.gcp.project_id == "test-custom-project"
     assert config.agent.model == "gemini-2.5-flash-test"
+

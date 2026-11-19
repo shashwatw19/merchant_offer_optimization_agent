@@ -1,4 +1,4 @@
-import json
+﻿import json
 from datetime import datetime, timezone
 from unittest.mock import MagicMock
 import pytest
@@ -158,3 +158,4 @@ def test_gcs_disabled_writes_directly_to_local_fallback(tmp_path):
     assert res.success is True
     assert res.is_fallback is True
     assert "Offline Mode" in open(res.local_path, "r", encoding="utf-8").read()
+

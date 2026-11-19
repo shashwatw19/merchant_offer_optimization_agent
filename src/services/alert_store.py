@@ -18,7 +18,7 @@ def _get_alerts_columns(project: str, gold: str) -> Set[str]:
 
 
 def ensure_alert_table() -> None:
-    """Ensure the offers_gold.alerts table exists in BigQuery with all required columns."""
+    """Ensure the card_gold.alerts table exists in BigQuery with all required columns."""
     config = get_config()
     project = config.gcp.project_id
     gold = config.gcp.gold_dataset

@@ -1,4 +1,4 @@
-"""Tests for FastAPI UI application routes and evidence verification."""
+﻿"""Tests for FastAPI UI application routes and evidence verification."""
 
 import json
 from pathlib import Path
@@ -50,17 +50,17 @@ def test_ui_dashboard_route_renders_table(client):
 def test_api_evidence_verify_endpoint(client):
     mock_res = {
         "success": True,
-        "evidence_ref": "bq:offers_silver.campaigns:CMP131",
+        "evidence_ref": "bq:card_silver.campaigns:CMP131",
         "target_type": "CAMPAIGN_TERMS",
         "source_layer": "BRONZE",
-        "source_table": "offers_bronze.campaigns_raw",
+        "source_table": "card_bronze.campaigns_raw",
         "resolved_id": "CMP131",
         "record_count": 1,
         "records": [{"campaign_id": "CMP131", "min_spend": "2000.00"}],
         "verification_verdict": "VERIFIED_SOURCE_RECORD",
     }
     with patch("services.evidence_service.EvidenceResolver.resolve_evidence", return_value=mock_res):
-        response = client.get("/api/evidence/verify?ref=bq:offers_silver.campaigns:CMP131&campaign_id=CMP131")
+        response = client.get("/api/evidence/verify?ref=bq:card_silver.campaigns:CMP131&campaign_id=CMP131")
         assert response.status_code == 200
         data = response.json()
         assert data["success"] is True
@@ -78,7 +78,7 @@ def test_view_report_route(client, tmp_path):
         "findings": [
             {
                 "observation": "Redemption rate is 4.00%, below 5.00% threshold",
-                "evidence": ["bq:offers_silver.campaigns:CMP131"],
+                "evidence": ["bq:card_silver.campaigns:CMP131"],
             }
         ],
         "hypotheses": [
@@ -108,7 +108,7 @@ def test_view_report_route(client, tmp_path):
         assert "CMP131" in response.text
         assert "2,800" in response.text  # Total tokens formatted
         assert "gemini-3.5-flash" in response.text
-        assert "bq:offers_silver.campaigns:CMP131" in response.text
+        assert "bq:card_silver.campaigns:CMP131" in response.text
 
         # Test markdown download endpoint
         md_response = client.get(f"/reports/{alert_id}/markdown")
@@ -179,3 +179,4 @@ def test_build_execution_steps_parallel_tool_calls():
         assert step["args"] == expected_args
         assert step["status"] == "SUCCESS"
         assert len(step["response_summary"]) > 0
+

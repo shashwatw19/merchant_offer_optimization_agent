@@ -1,4 +1,4 @@
-"""Unit tests for P1 and P2 refactored architectural components."""
+﻿"""Unit tests for P1 and P2 refactored architectural components."""
 
 import pytest
 from unittest.mock import MagicMock
@@ -178,4 +178,5 @@ def test_fetch_agent_runs(monkeypatch):
     runs = fetch_agent_runs(limit=5, alert_id="A1001")
     assert len(runs) == 1
     assert runs[0]["execution_id"] == "exec_01"
+
 

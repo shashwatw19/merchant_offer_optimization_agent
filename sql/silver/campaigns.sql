@@ -1,13 +1,13 @@
-/* ==========================================================
+﻿/* ==========================================================
    PROJECT : prj-imp-act-campaign
 
    SOURCE
    -------
-   prj-imp-act-campaign.offers_bronze.campaigns_raw
+   prj-imp-act-campaign.card_bronze.campaigns_raw
 
    TARGET
    -------
-   prj-imp-act-campaign.offers_silver.campaigns
+   prj-imp-act-campaign.card_silver.campaigns
 
    CHANGES
    -------
@@ -22,7 +22,7 @@
 ========================================================== */
 
 CREATE TABLE IF NOT EXISTS
-`prj-imp-act-campaign.offers_silver.campaigns`
+`prj-imp-act-campaign.card_silver.campaigns`
 (
   campaign_id STRING NOT NULL,
   merchant_id STRING NOT NULL,
@@ -114,10 +114,10 @@ WITH raw_data AS (
         ) AS rn
 
     FROM
-    `prj-imp-act-campaign.offers_bronze.campaigns_raw` r
+    `prj-imp-act-campaign.card_bronze.campaigns_raw` r
 
     LEFT JOIN
-    `prj-imp-act-campaign.offers_silver.merchants` m
+    `prj-imp-act-campaign.card_silver.merchants` m
         ON TRIM(r.merchant_id) = m.merchant_id
 )
 
@@ -218,7 +218,7 @@ FROM raw_data;
 ========================================================== */
 
 INSERT INTO
-`prj-imp-act-campaign.offers_silver.invalid_records`
+`prj-imp-act-campaign.card_silver.invalid_records`
 (
     table_name,
     record_id,
@@ -252,7 +252,7 @@ WHERE ARRAY_LENGTH(errors) > 0;
 ========================================================== */
 
 MERGE
-`prj-imp-act-campaign.offers_silver.campaigns` T
+`prj-imp-act-campaign.card_silver.campaigns` T
 
 USING (
 

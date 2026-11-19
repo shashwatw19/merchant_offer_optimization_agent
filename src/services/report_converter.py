@@ -15,24 +15,7 @@ def convert_json_report_to_markdown(
     save_to_gcs: bool = True,
     output_path: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Convert an investigation JSON report into a formatted, human-readable Markdown report.
 
-    Can read from an in-memory dictionary, a local file path, or a GCS object URI.
-    Optionally persists the generated Markdown report back to Google Cloud Storage
-    and/or a specified local file path.
-
-    Args:
-        report_data: In-memory dictionary matching the InvestigationReport schema.
-        json_path: Path to a local JSON report file.
-        gcs_uri: Google Cloud Storage URI (e.g. 'gs://bucket/reports/json/exec.json') or object path.
-        execution_id: Optional correlation execution ID.
-        save_to_gcs: Whether to upload the generated Markdown report to GCS (default: True).
-        output_path: Optional local destination file path to write the Markdown report.
-
-    Returns:
-        A dictionary containing success status, execution ID, alert ID, markdown content,
-        and storage destination details.
-    """
     storage = get_storage_service()
     raw_data: Optional[Dict[str, Any]] = None
 
