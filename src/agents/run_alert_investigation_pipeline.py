@@ -15,6 +15,10 @@ from services.alert_store import (
     fetch_pending_alerts,
     update_alert_status,
 )
+from services.run_store import (
+    ensure_agent_runs_table,
+    update_agent_run_gcs_uris,
+)
 from agents.tools.bigquery_tools import get_campaign_terms
 from services.report_converter import convert_json_report_to_markdown
 from core.config import get_config
@@ -83,6 +87,12 @@ async def process_alert_batch(
             result["markdown_content"] = md_res.get("markdown_content")
 
             if not dry_run:
+                # Update BigQuery card_gold.agent_runs with canonical GCS report URIs
+                update_agent_run_gcs_uris(
+                    execution_id=exec_id,
+                    gcs_json_uri=result.get("gcs_json_uri"),
+                    gcs_markdown_uri=result.get("gcs_markdown_uri"),
+                )
                 update_alert_status(alert_id, "RESOLVED", summary=summary)
         else:
             err = result.get("error", "Unknown error")
@@ -110,6 +120,7 @@ def main() -> None:
 
     if not args.dry_run:
         ensure_alert_table()
+        ensure_agent_runs_table()
 
     if args.alert_id:
         pending_alerts = [

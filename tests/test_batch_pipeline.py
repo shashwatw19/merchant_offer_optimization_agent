@@ -36,6 +36,7 @@ async def test_process_alert_batch_success(tmp_path, monkeypatch):
     import agents.run_alert_investigation_pipeline as pipeline_mod
     monkeypatch.setattr(pipeline_mod, "process_alert_async", AsyncMock(return_value=mock_result))
     monkeypatch.setattr(pipeline_mod, "update_alert_status", lambda aid, status, summary=None: True)
+    monkeypatch.setattr(pipeline_mod, "update_agent_run_gcs_uris", lambda execution_id, gcs_json_uri=None, gcs_markdown_uri=None: True)
 
     results = await process_alert_batch(mock_alerts, output_dir=tmp_path, dry_run=False)
     assert len(results) == 1

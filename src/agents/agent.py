@@ -143,6 +143,9 @@ def _record_run_telemetry(
     status: str,
     metrics: Dict[str, Any],
     tool_calls_trace: List[Dict[str, Any]],
+    run_number: Optional[int] = None,
+    gcs_json_uri: Optional[str] = None,
+    gcs_markdown_uri: Optional[str] = None,
     error: Optional[str] = None,
 ) -> None:
     """Persist agent run execution telemetry to BigQuery table card_gold.agent_runs."""
@@ -154,9 +157,12 @@ def _record_run_telemetry(
             campaign_id=alert.get("campaign_id", "CMP_UNKNOWN"),
             merchant_id=alert.get("merchant_id"),
             rule_id=alert.get("rule_id"),
+            run_number=run_number,
             status=status,
             metrics=metrics,
             tool_calls=tool_calls_trace,
+            gcs_json_uri=gcs_json_uri,
+            gcs_markdown_uri=gcs_markdown_uri,
             error=error,
             agent_name=config.agent.name,
             model_name=MODEL_NAME,
@@ -168,12 +174,20 @@ def _record_run_telemetry(
 async def process_alert_async(
     alert: Dict[str, Any],
     execution_id: Optional[str] = None,
+    run_number: Optional[int] = None,
 ) -> Dict[str, Any]:
     """Execute end-to-end investigation workflow for an alert using Google ADK."""
+    from services.run_store import generate_execution_id, get_next_run_number
+
     start_time = time.time()
     alert_id = alert.get("alert_id", "A_UNKNOWN")
     campaign_id = alert.get("campaign_id", "CMP_UNKNOWN")
-    exec_id = execution_id or f"exec_{alert_id}_{int(start_time)}"
+
+    resolved_run_num = run_number
+    if resolved_run_num is None and not execution_id:
+        resolved_run_num = get_next_run_number(alert_id)
+
+    exec_id = execution_id or generate_execution_id(alert_id, run_number=resolved_run_num)
     session_id = f"session_alert_{alert_id}"
 
     session = await get_or_create_session(USER_ID, session_id)
@@ -217,6 +231,9 @@ async def process_alert_async(
             parsed_report["metrics"] = metrics
             parsed_report["tool_calls"] = tool_calls_trace
 
+        if resolved_run_num is not None:
+            parsed_report["run_number"] = resolved_run_num
+
         tracer.write_trace(
             alert_id=alert_id,
             campaign_id=campaign_id,
@@ -234,11 +251,13 @@ async def process_alert_async(
             status="SUCCESS",
             metrics=metrics,
             tool_calls_trace=tool_calls_trace,
+            run_number=resolved_run_num,
         )
 
         return {
             "success": True,
             "execution_id": exec_id,
+            "run_number": resolved_run_num,
             "alert_id": alert_id,
             "campaign_id": campaign_id,
             "report": parsed_report,
@@ -274,12 +293,14 @@ async def process_alert_async(
             status="FAILED",
             metrics=metrics,
             tool_calls_trace=tool_calls_trace,
+            run_number=resolved_run_num,
             error=str(exc),
         )
 
         return {
             "success": False,
             "execution_id": exec_id,
+            "run_number": resolved_run_num,
             "alert_id": alert_id,
             "campaign_id": campaign_id,
             "error": str(exc),

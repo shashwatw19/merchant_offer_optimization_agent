@@ -3,6 +3,21 @@ from typing import Any, Dict, List, Optional
 from core.logging import logger
 
 
+def _extract_metric_val(meta: Any, *keys: str, default: int = 0) -> int:
+    """Safely extract integer metric from object attributes or dictionary keys (snake_case or camelCase)."""
+    for k in keys:
+        if isinstance(meta, dict):
+            val = meta.get(k)
+        else:
+            val = getattr(meta, k, None)
+        if val is not None:
+            try:
+                return int(val)
+            except (ValueError, TypeError):
+                pass
+    return default
+
+
 class ExecutionMetricsCollector:
     """Collects and computes execution telemetry, token consumption, and tool latencies during agent runs."""
 
@@ -25,15 +40,30 @@ class ExecutionMetricsCollector:
 
     def process_event(self, event: Any) -> None:
         """Process an ADK runner lifecycle event to update token counts and tool invocations."""
-        # 1. Capture token usage metadata
-        if hasattr(event, "usage_metadata") and event.usage_metadata:
-            um = event.usage_metadata
-            self.prompt_tokens = getattr(um, "prompt_token_count", self.prompt_tokens) or self.prompt_tokens
-            self.candidates_tokens = getattr(um, "candidates_token_count", self.candidates_tokens) or self.candidates_tokens
-            self.total_tokens = getattr(um, "total_token_count", self.total_tokens) or self.total_tokens
-            self.cached_tokens = getattr(um, "cached_content_token_count", self.cached_tokens) or self.cached_tokens
-            self.tool_use_tokens = getattr(um, "tool_use_prompt_token_count", self.tool_use_tokens) or self.tool_use_tokens
-            self.thoughts_tokens = getattr(um, "thoughts_token_count", self.thoughts_tokens) or self.thoughts_tokens
+        # 1. Capture token usage metadata (handles object attributes, dicts, and nested responses)
+        um = getattr(event, "usage_metadata", None)
+        if not um and hasattr(event, "response"):
+            um = getattr(event.response, "usage_metadata", None)
+
+        if um:
+            self.prompt_tokens = _extract_metric_val(
+                um, "prompt_token_count", "promptTokenCount", "prompt_tokens", default=self.prompt_tokens
+            )
+            self.candidates_tokens = _extract_metric_val(
+                um, "candidates_token_count", "candidatesTokenCount", "candidates_tokens", default=self.candidates_tokens
+            )
+            self.total_tokens = _extract_metric_val(
+                um, "total_token_count", "totalTokenCount", "total_tokens", default=self.total_tokens
+            )
+            self.cached_tokens = _extract_metric_val(
+                um, "cached_content_token_count", "cachedContentTokenCount", "cached_tokens", "cached_token", default=self.cached_tokens
+            )
+            self.tool_use_tokens = _extract_metric_val(
+                um, "tool_use_prompt_token_count", "toolUsePromptTokenCount", "tool_use_tokens", "tool_used_tokens", "tool_used_token", default=self.tool_use_tokens
+            )
+            self.thoughts_tokens = _extract_metric_val(
+                um, "thoughts_token_count", "thoughtsTokenCount", "thoughts_tokens", default=self.thoughts_tokens
+            )
 
         # 2. Capture content parts (function calls, function responses, text)
         if hasattr(event, "content") and event.content:
@@ -89,7 +119,21 @@ class ExecutionMetricsCollector:
             sum(t.get("duration_ms", 0.0) for t in tool_responses), 2
         )
 
-        total_input_tokens = self.prompt_tokens + self.tool_use_tokens
+        # Reconcile tool_use_tokens if reported as 0 by model metadata:
+        # In Gemini function calling, tool payloads are often merged into prompt_tokens or reflected only in total_tokens delta.
+        resolved_tool_tokens = self.tool_use_tokens
+        if not resolved_tool_tokens and self.total_tokens > (self.prompt_tokens + self.candidates_tokens):
+            resolved_tool_tokens = self.total_tokens - (self.prompt_tokens + self.candidates_tokens)
+
+        if not resolved_tool_tokens and self.tool_calls_trace:
+            # Estimate tokens from tool call arguments and responses (~4 chars per token)
+            payload_chars = sum(
+                len(str(t.get("args", ""))) + len(str(t.get("response", "")))
+                for t in self.tool_calls_trace
+            )
+            resolved_tool_tokens = max(1, payload_chars // 4)
+
+        total_input_tokens = self.prompt_tokens + resolved_tool_tokens
         total_output_tokens = self.candidates_tokens + self.thoughts_tokens
         effective_total_tokens = self.total_tokens or (total_input_tokens + total_output_tokens)
 
@@ -97,13 +141,15 @@ class ExecutionMetricsCollector:
             "duration_ms": duration_ms,
             "tool_latency_ms": total_tool_latency_ms,
             "prompt_tokens": self.prompt_tokens,
-            "tool_use_tokens": self.tool_use_tokens,
+            "tool_use_tokens": resolved_tool_tokens,
+            "tool_used_token": resolved_tool_tokens,
             "input_tokens": total_input_tokens,
             "candidates_tokens": self.candidates_tokens,
             "thoughts_tokens": self.thoughts_tokens,
             "output_tokens": total_output_tokens,
             "total_tokens": effective_total_tokens,
             "cached_tokens": self.cached_tokens,
+            "cached_token": self.cached_tokens,
             "tool_call_count": len([t for t in self.tool_calls_trace if t.get("type") == "call"]),
             "model": self.model_name,
         }

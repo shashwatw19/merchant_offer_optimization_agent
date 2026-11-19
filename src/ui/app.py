@@ -14,6 +14,7 @@ from starlette.templating import Jinja2Templates
 
 from agents.agent import process_alert_async
 from services.alert_store import update_alert_status
+from services.run_store import update_agent_run_gcs_uris
 from agents.tools.bigquery_tools import get_campaign_terms
 from services.report_converter import convert_json_report_to_markdown
 from core.bigquery_client import execute_query
@@ -550,6 +551,13 @@ async def investigate_alert(request: Request, alert_id: str) -> HTMLResponse:
             if md_res.get("success") and md_res.get("gcs_uri"):
                 report_data["gcs_markdown_uri"] = md_res.get("gcs_uri")
                 logger.info(f"Uploaded Markdown report to GCS: {md_res.get('gcs_uri')}")
+
+            # Update BigQuery card_gold.agent_runs with canonical GCS report URIs
+            update_agent_run_gcs_uris(
+                execution_id=exec_id,
+                gcs_json_uri=report_data.get("gcs_json_uri"),
+                gcs_markdown_uri=report_data.get("gcs_markdown_uri"),
+            )
         except Exception as exc:
             logger.warning(f"Could not upload report to GCS (falling back to local storage): {exc}")
 

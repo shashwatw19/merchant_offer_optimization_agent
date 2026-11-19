@@ -11,7 +11,10 @@ from services.report_renderer import ReportRendererService, render_report_to_mar
 from services.run_store import (
     ensure_agent_runs_table,
     fetch_agent_runs,
+    generate_execution_id,
+    get_next_run_number,
     record_agent_run,
+    update_agent_run_gcs_uris,
 )
 
 __all__ = [
@@ -20,7 +23,10 @@ __all__ = [
     "update_alert_status",
     "ensure_agent_runs_table",
     "record_agent_run",
+    "update_agent_run_gcs_uris",
     "fetch_agent_runs",
+    "generate_execution_id",
+    "get_next_run_number",
     "EvidenceResolver",
     "get_evidence_resolver",
     "GCSStorageService",

@@ -1,4 +1,4 @@
-﻿"""Unit tests for P1 and P2 refactored architectural components."""
+"""Unit tests for P1 and P2 refactored architectural components."""
 
 import pytest
 from unittest.mock import MagicMock
@@ -178,5 +178,61 @@ def test_fetch_agent_runs(monkeypatch):
     runs = fetch_agent_runs(limit=5, alert_id="A1001")
     assert len(runs) == 1
     assert runs[0]["execution_id"] == "exec_01"
+
+
+def test_tool_tokens_reconciled_when_zero():
+    collector = ExecutionMetricsCollector(model_name="gemini-3.5-flash", alert_id="A1001")
+
+    # Event with 0 tool_use tokens reported by LLM
+    event_meta = MagicMock()
+    event_meta.usage_metadata.prompt_token_count = 500
+    event_meta.usage_metadata.candidates_token_count = 200
+    event_meta.usage_metadata.total_token_count = 700
+    event_meta.usage_metadata.cached_content_token_count = 0
+    event_meta.usage_metadata.tool_use_prompt_token_count = 0
+    event_meta.usage_metadata.thoughts_token_count = 0
+    event_meta.content = None
+    collector.process_event(event_meta)
+
+    # Tool call with payload
+    collector.tool_calls_trace = [
+        {"type": "call", "name": "get_campaign_performance", "args": {"campaign_id": "CMP131"}},
+        {"type": "response", "name": "get_campaign_performance", "response": "a" * 800, "duration_ms": 100},
+    ]
+    metrics = collector.compute_metrics()
+    assert metrics["tool_use_tokens"] > 0
+    assert metrics["tool_used_token"] == metrics["tool_use_tokens"]
+
+
+def test_update_agent_run_gcs_uris(monkeypatch):
+    from services.run_store import update_agent_run_gcs_uris
+    import core.bigquery_client as bq_mod
+
+    executed_queries = []
+    monkeypatch.setattr(bq_mod, "execute_query", lambda sql, parameters=None: executed_queries.append((sql, parameters)))
+
+    ok = update_agent_run_gcs_uris(
+        execution_id="exec_A1001_123_run1",
+        gcs_json_uri="gs://bucket/report.json",
+        gcs_markdown_uri="gs://bucket/report.md",
+    )
+    assert ok is True
+    assert len(executed_queries) == 1
+    assert "UPDATE" in executed_queries[0][0]
+
+
+def test_get_next_run_number_and_generate_id(monkeypatch):
+    from services.run_store import get_next_run_number, generate_execution_id
+    import core.bigquery_client as bq_mod
+
+    monkeypatch.setattr(bq_mod, "execute_query", lambda sql, parameters=None, timeout_sec=None: [{"total_runs": 2}])
+
+    next_run = get_next_run_number("A8247")
+    assert next_run == 3
+
+    exec_id = generate_execution_id("A8247", run_number=next_run)
+    assert "exec_A8247_" in exec_id
+    assert exec_id.endswith("_run3")
+
 
 
