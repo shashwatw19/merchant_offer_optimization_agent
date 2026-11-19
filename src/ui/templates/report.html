@@ -148,7 +148,7 @@
           <tbody>
             <!-- Minimum Transaction Value / Spend Threshold -->
             {% set actual_min_spend = (campaign_terms.min_spend if campaign_terms and campaign_terms.min_spend is not none else 2000.0)|float %}
-            {% set prop_min_spend = report.proposal.min_spend if (report.proposal and report.proposal.min_spend is not none) else none %}
+            {% set prop_min_spend = report.proposal.min_spend if (report.proposal and report.proposal.min_spend is defined and report.proposal.min_spend is not none) else none %}
             {% set min_spend_changed = (prop_min_spend is not none and prop_min_spend|float != actual_min_spend) %}
             <tr class="{{ 'diff-highlight' if min_spend_changed else '' }}">
               <td class="param-name">
@@ -174,7 +174,7 @@
 
             <!-- Discount / Cashback Rate -->
             {% set actual_cashback = (campaign_terms.cashback_pct if campaign_terms and campaign_terms.cashback_pct is not none else 10.0)|float %}
-            {% set prop_cashback = report.proposal.cashback_pct if (report.proposal and report.proposal.cashback_pct is not none) else actual_cashback %}
+            {% set prop_cashback = report.proposal.cashback_pct if (report.proposal and report.proposal.cashback_pct is defined and report.proposal.cashback_pct is not none) else actual_cashback %}
             <tr>
               <td class="param-name">
                 <strong>Discount / Cashback Rate</strong>
@@ -193,7 +193,7 @@
 
             <!-- Maximum Discount / Cashback Cap -->
             {% set actual_cap = (campaign_terms.cashback_cap if campaign_terms and campaign_terms.cashback_cap is not none else 200.0)|float %}
-            {% set prop_cap = report.proposal.cashback_cap if (report.proposal and report.proposal.cashback_cap is not none) else actual_cap %}
+            {% set prop_cap = report.proposal.cashback_cap if (report.proposal and report.proposal.cashback_cap is defined and report.proposal.cashback_cap is not none) else actual_cap %}
             <tr>
               <td class="param-name">
                 <strong>Maximum Discount (Cashback Cap)</strong>

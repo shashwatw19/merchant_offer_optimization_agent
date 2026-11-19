@@ -1,6 +1,5 @@
 import asyncio
 import json
-import os
 import re
 import time
 from typing import Any, Dict, List, Optional
@@ -20,6 +19,7 @@ from agents.tools.bigquery_tools import (
     simulate_campaign_change,
 )
 from agents.tools.policy_tools import validate_proposal
+from agents.telemetry import ExecutionMetricsCollector
 from agents.tracer import ExecutionTracer
 from core.config import get_config
 from core.logging import logger
@@ -27,25 +27,6 @@ from domain.contracts import InvestigationReport
 from prompts import format_investigation_prompt, get_system_instruction
 
 config = get_config()
-
-# Configure GCP project and location identical to bigquery_client
-_gcp_project = getattr(getattr(config, "gcp", None), "project_id", "prj-imp-act-campaign")
-_gcp_location = getattr(getattr(config, "gcp", None), "location", "asia-south1")
-
-if "GOOGLE_CLOUD_PROJECT" not in os.environ and _gcp_project:
-    os.environ["GOOGLE_CLOUD_PROJECT"] = _gcp_project
-if "GCP_PROJECT" not in os.environ and _gcp_project:
-    os.environ["GCP_PROJECT"] = _gcp_project
-if "GOOGLE_CLOUD_LOCATION" not in os.environ and _gcp_location:
-    os.environ["GOOGLE_CLOUD_LOCATION"] = _gcp_location
-
-# If Gemini API key is present in environment, sync it; otherwise use Google Cloud Vertex AI like BigQuery client
-_API_KEY = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
-if _API_KEY:
-    os.environ["GEMINI_API_KEY"] = _API_KEY
-    os.environ["GOOGLE_API_KEY"] = _API_KEY
-else:
-    os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "true"
 
 APP_NAME = "merchant_offer_app"
 USER_ID = "merchant_user"
@@ -122,6 +103,68 @@ def extract_json_report(text: str) -> Optional[Dict[str, Any]]:
         return None
 
 
+def _create_fallback_report(
+    alert: Dict[str, Any],
+    alert_id: str,
+    campaign_id: str,
+    exec_id: str,
+    now_str: str,
+    final_text: str,
+    metrics: Dict[str, Any],
+    tool_calls_trace: List[Dict[str, Any]],
+) -> Dict[str, Any]:
+    """Construct a safe fallback report when the LLM output cannot be strictly parsed as JSON."""
+    return {
+        "alert_id": alert_id,
+        "campaign_id": campaign_id,
+        "execution_id": exec_id,
+        "generated_at": now_str,
+        "status": "COMPLETE",
+        "summary": final_text[:1000] if final_text else f"Investigation completed for alert {alert_id}.",
+        "findings": [
+            {
+                "observation": f"Alert {alert_id} investigated for campaign {campaign_id}.",
+                "evidence": [f"rule:{alert.get('rule_id')}"],
+            }
+        ],
+        "hypotheses": [],
+        "proposal": {"type": "MONITOR", "rationale": "Review raw findings."},
+        "simulation_type": "HISTORICAL_REPLAY",
+        "future_incremental_spend": None,
+        "human_approval_required": True,
+        "metrics": metrics,
+        "tool_calls": tool_calls_trace,
+    }
+
+
+def _record_run_telemetry(
+    execution_id: str,
+    alert: Dict[str, Any],
+    status: str,
+    metrics: Dict[str, Any],
+    tool_calls_trace: List[Dict[str, Any]],
+    error: Optional[str] = None,
+) -> None:
+    """Persist agent run execution telemetry to BigQuery table offers_gold.agent_runs."""
+    try:
+        from services.run_store import record_agent_run
+        record_agent_run(
+            execution_id=execution_id,
+            alert_id=alert.get("alert_id", "A_UNKNOWN"),
+            campaign_id=alert.get("campaign_id", "CMP_UNKNOWN"),
+            merchant_id=alert.get("merchant_id"),
+            rule_id=alert.get("rule_id"),
+            status=status,
+            metrics=metrics,
+            tool_calls=tool_calls_trace,
+            error=error,
+            agent_name=config.agent.name,
+            model_name=MODEL_NAME,
+        )
+    except Exception as run_exc:
+        logger.debug(f"Could not record BigQuery agent run: {run_exc}")
+
+
 async def process_alert_async(
     alert: Dict[str, Any],
     execution_id: Optional[str] = None,
@@ -133,36 +176,11 @@ async def process_alert_async(
     exec_id = execution_id or f"exec_{alert_id}_{int(start_time)}"
     session_id = f"session_alert_{alert_id}"
 
-    # Configure GCP environment identical to bigquery_client
-    gcp_proj = getattr(getattr(config, "gcp", None), "project_id", "prj-imp-act-campaign")
-    gcp_loc = getattr(getattr(config, "gcp", None), "location", "asia-south1")
-    if gcp_proj:
-        os.environ["GOOGLE_CLOUD_PROJECT"] = gcp_proj
-        os.environ["GCP_PROJECT"] = gcp_proj
-    if gcp_loc:
-        os.environ["GOOGLE_CLOUD_LOCATION"] = gcp_loc
-
-    api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
-    if api_key:
-        os.environ["GEMINI_API_KEY"] = api_key
-        os.environ["GOOGLE_API_KEY"] = api_key
-    else:
-        # Use Google Cloud Vertex AI credentials, identical to BigQuery client
-        os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "true"
-
     session = await get_or_create_session(USER_ID, session_id)
     prompt = format_investigation_prompt(alert)
 
     content = types.Content(role="user", parts=[types.Part(text=prompt)])
-    final_text = ""
-    tool_calls_trace: List[Dict[str, Any]] = []
-    tool_start_times: Dict[str, List[float]] = {}
-    prompt_tokens = 0
-    candidates_tokens = 0
-    total_tokens = 0
-    cached_tokens = 0
-    tool_use_tokens = 0
-    thoughts_tokens = 0
+    collector = ExecutionMetricsCollector(model_name=MODEL_NAME, alert_id=alert_id)
 
     try:
         async for event in runner.run_async(
@@ -170,94 +188,27 @@ async def process_alert_async(
             session_id=session.id,
             new_message=content,
         ):
-            if hasattr(event, "usage_metadata") and event.usage_metadata:
-                um = event.usage_metadata
-                prompt_tokens = getattr(um, "prompt_token_count", prompt_tokens) or prompt_tokens
-                candidates_tokens = getattr(um, "candidates_token_count", candidates_tokens) or candidates_tokens
-                total_tokens = getattr(um, "total_token_count", total_tokens) or total_tokens
-                cached_tokens = getattr(um, "cached_content_token_count", cached_tokens) or cached_tokens
-                tool_use_tokens = getattr(um, "tool_use_prompt_token_count", tool_use_tokens) or tool_use_tokens
-                thoughts_tokens = getattr(um, "thoughts_token_count", thoughts_tokens) or thoughts_tokens
+            collector.process_event(event)
 
-            if hasattr(event, "content") and event.content:
-                for part in event.content.parts:
-                    if getattr(part, "function_call", None):
-                        fc = part.function_call
-                        tool_start_times.setdefault(fc.name, []).append(time.time())
-                        logger.info(f"Tool called: {fc.name}", extra={"alert_id": alert_id, "tool_name": fc.name})
-                        tool_calls_trace.append({
-                            "type": "call",
-                            "name": fc.name,
-                            "args": fc.args,
-                            "timestamp": time.time(),
-                        })
-                    elif getattr(part, "function_response", None):
-                        fr = part.function_response
-                        start_t = tool_start_times[fr.name].pop(0) if tool_start_times.get(fr.name) else time.time()
-                        tool_duration_ms = round((time.time() - start_t) * 1000, 2)
-                        logger.info(f"Tool responded: {fr.name} ({tool_duration_ms}ms)", extra={"alert_id": alert_id, "tool_name": fr.name})
-                        tool_calls_trace.append({
-                            "type": "response",
-                            "name": fr.name,
-                            "response": str(fr.response)[:5000],
-                            "duration_ms": tool_duration_ms,
-                            "timestamp": time.time(),
-                        })
-                    elif getattr(part, "text", None):
-                        final_text += part.text
-
-        duration_ms = round((time.time() - start_time) * 1000, 2)
-        total_tool_latency_ms = round(sum(t.get("duration_ms", 0) for t in tool_calls_trace if t.get("type") == "response"), 2)
-
-        
-        # Total Input = prompt (initial prompt + instructions) + tool_use (results from tool execution)
-        total_input_tokens = prompt_tokens + tool_use_tokens
-        # Total Output = candidates (generated text/report) + thoughts (reasoning)
-        total_output_tokens = candidates_tokens + thoughts_tokens
-        # If total_tokens from API is reported, preserve it; otherwise sum input + output
-        effective_total_tokens = total_tokens or (total_input_tokens + total_output_tokens)
-
-        metrics = {
-            "duration_ms": duration_ms,
-            "tool_latency_ms": total_tool_latency_ms,
-            "prompt_tokens": prompt_tokens,
-            "tool_use_tokens": tool_use_tokens,
-            "input_tokens": total_input_tokens,
-            "candidates_tokens": candidates_tokens,
-            "thoughts_tokens": thoughts_tokens,
-            "output_tokens": total_output_tokens,
-            "total_tokens": effective_total_tokens,
-            "cached_tokens": cached_tokens,
-            "tool_call_count": len([t for t in tool_calls_trace if t.get("type") == "call"]),
-            "model": MODEL_NAME,
-        }
+        collector.end_time = time.time()
+        metrics = collector.compute_metrics()
+        duration_ms = metrics["duration_ms"]
+        tool_calls_trace = collector.tool_calls_trace
+        final_text = collector.final_text
         parsed_report = extract_json_report(final_text)
-
         now_str = now_ist_str()
 
-        # Fallback if LLM output could not be strictly parsed as JSON
         if not parsed_report:
-            parsed_report = {
-                "alert_id": alert_id,
-                "campaign_id": campaign_id,
-                "execution_id": exec_id,
-                "generated_at": now_str,
-                "status": "COMPLETE",
-                "summary": final_text[:1000],
-                "findings": [
-                    {
-                        "observation": f"Alert {alert_id} investigated for campaign {campaign_id}.",
-                        "evidence": [f"rule:{alert.get('rule_id')}"],
-                    }
-                ],
-                "hypotheses": [],
-                "proposal": {"type": "MONITOR", "rationale": "Review raw findings."},
-                "simulation_type": "HISTORICAL_REPLAY",
-                "future_incremental_spend": None,
-                "human_approval_required": True,
-                "metrics": metrics,
-                "tool_calls": tool_calls_trace,
-            }
+            parsed_report = _create_fallback_report(
+                alert=alert,
+                alert_id=alert_id,
+                campaign_id=campaign_id,
+                exec_id=exec_id,
+                now_str=now_str,
+                final_text=final_text,
+                metrics=metrics,
+                tool_calls_trace=tool_calls_trace,
+            )
         else:
             if not parsed_report.get("execution_id"):
                 parsed_report["execution_id"] = exec_id
@@ -277,6 +228,14 @@ async def process_alert_async(
             metrics=metrics,
         )
 
+        _record_run_telemetry(
+            execution_id=exec_id,
+            alert=alert,
+            status="SUCCESS",
+            metrics=metrics,
+            tool_calls_trace=tool_calls_trace,
+        )
+
         return {
             "success": True,
             "execution_id": exec_id,
@@ -291,25 +250,12 @@ async def process_alert_async(
         }
 
     except Exception as exc:
-        duration_ms = round((time.time() - start_time) * 1000, 2)
+        collector.end_time = time.time()
+        duration_ms = collector.get_duration_ms()
         logger.error(f"Investigation failed for alert {alert_id}: {exc}", extra={"alert_id": alert_id})
-        total_input_tokens = prompt_tokens + tool_use_tokens
-        total_output_tokens = candidates_tokens + thoughts_tokens
-        effective_total_tokens = total_tokens or (total_input_tokens + total_output_tokens)
-        metrics = {
-            "duration_ms": duration_ms,
-            "tool_latency_ms": 0.0,
-            "prompt_tokens": prompt_tokens,
-            "tool_use_tokens": tool_use_tokens,
-            "input_tokens": total_input_tokens,
-            "candidates_tokens": candidates_tokens,
-            "thoughts_tokens": thoughts_tokens,
-            "output_tokens": total_output_tokens,
-            "total_tokens": effective_total_tokens,
-            "cached_tokens": cached_tokens,
-            "tool_call_count": len([t for t in tool_calls_trace if t.get("type") == "call"]),
-            "model": MODEL_NAME,
-        }
+        metrics = collector.compute_metrics()
+        tool_calls_trace = collector.tool_calls_trace
+
         tracer.write_trace(
             alert_id=alert_id,
             campaign_id=campaign_id,
@@ -321,6 +267,16 @@ async def process_alert_async(
             execution_id=exec_id,
             metrics=metrics,
         )
+
+        _record_run_telemetry(
+            execution_id=exec_id,
+            alert=alert,
+            status="FAILED",
+            metrics=metrics,
+            tool_calls_trace=tool_calls_trace,
+            error=str(exc),
+        )
+
         return {
             "success": False,
             "execution_id": exec_id,

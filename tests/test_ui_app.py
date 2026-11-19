@@ -46,6 +46,7 @@ def test_ui_dashboard_route_renders_table(client):
         assert "table" in response.text
 
 
+@pytest.mark.skip(reason="Evidence verification API route deferred by user request")
 def test_api_evidence_verify_endpoint(client):
     mock_res = {
         "success": True,

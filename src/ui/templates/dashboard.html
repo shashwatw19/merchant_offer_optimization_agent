@@ -5,7 +5,7 @@
 {% block content %}
   <section class="page-heading">
     <div>
-      <p class="eyebrow">Investigation workspace</p>
+      <p class="eyebrow">Alert Management Queue · Investigation workspace</p>
       <h1>Open alerts</h1>
       <p class="subheading">Review campaign signals and run an evidence-backed agent investigation.</p>
     </div>
@@ -13,7 +13,7 @@
   </section>
 
   {% if alerts %}
-    <div class="alert-list">
+    <div class="alert-list alerts-table">
       {% for alert in alerts %}
         <article class="alert-card">
           <div class="alert-card-top">

@@ -13,9 +13,9 @@ from google.cloud import bigquery
 from starlette.templating import Jinja2Templates
 
 from agents.agent import process_alert_async
-from agents.tools.alert_store import update_alert_status
+from services.alert_store import update_alert_status
 from agents.tools.bigquery_tools import get_campaign_terms
-from agents.tools.report_tools import convert_json_report_to_markdown
+from services.report_converter import convert_json_report_to_markdown
 from core.bigquery_client import execute_query
 from core.config import get_config
 from core.logging import logger
@@ -168,6 +168,15 @@ templates = Jinja2Templates(directory=str(UI_DIR / "templates"))
 def _report_path(alert_id: str) -> Path:
     if not ALERT_ID_PATTERN.fullmatch(alert_id):
         raise HTTPException(status_code=400, detail="Invalid alert ID.")
+    candidate_paths = [
+        REPORT_DIR / f"report_{alert_id}.json",
+        Path.cwd() / "output" / f"report_{alert_id}.json",
+        Path.cwd() / "output" / "reports" / f"report_{alert_id}.json",
+        Path.cwd() / "output" / "ui_reports" / f"report_{alert_id}.json",
+    ]
+    for p in candidate_paths:
+        if p.is_file():
+            return p
     return REPORT_DIR / f"report_{alert_id}.json"
 
 
@@ -449,7 +458,7 @@ def dashboard(request: Request) -> HTMLResponse:
 
 
 @app.post("/alerts/{alert_id}/investigate", name="investigate_alert")
-def investigate_alert(request: Request, alert_id: str) -> HTMLResponse:
+async def investigate_alert(request: Request, alert_id: str) -> HTMLResponse:
     if not ALERT_ID_PATTERN.fullmatch(alert_id):
         return _render_error(request, "Invalid alert ID.", status_code=400)
 
@@ -484,7 +493,7 @@ def investigate_alert(request: Request, alert_id: str) -> HTMLResponse:
         )
 
     try:
-        result = asyncio.run(process_alert_async(alert))
+        result = await process_alert_async(alert)
         if not result.get("success") or not result.get("report"):
             error = str(result.get("error") or "The agent did not return an investigation report.")
             logger.error(
