@@ -1,0 +1,63 @@
+# ==============================================================================
+# Merchant Offer Optimization Agent Configuration
+# Settings for Google ADK runtime, Gemini 3.5 Flash, Playbooks, and Audit Lineage
+# ==============================================================================
+
+agent:
+  name: "merchant_offer_investigator"
+  app_name: "merchant_offer_agent"
+  model: "gemini-3.5-flash"
+  temperature: 0.0          # Non-negotiable invariant: zero temperature ensures deterministic stability
+  seed: 42                  # Pinned seed for reproducible inference
+  max_tool_steps: 12        # Circuit breaker: maximum tool-calling steps per alert investigation
+  timeout_seconds: 60
+  max_workers: 3            # Bounded concurrency for batch runs (prevents API rate limits)
+
+policy:
+  allowed_thresholds:
+    - 1000.0
+    - 1250.0
+    - 1500.0
+    - 1750.0
+    - 2000.0
+  cashback_percent: 10.0
+  cashback_cap: 200.0
+  budget_ceiling: 40000.0
+
+investigation:
+  max_tool_calls: 9
+  retry_count: 2
+  max_retry_count: 2
+  evidence_required: true
+  citations_required: true
+  alert_cooldown_minutes: 2.0
+  required_tools:
+    - "get_campaign_terms"
+    - "get_campaign_performance"
+    - "get_spend_distribution"
+    - "get_customer_reviews"
+    - "get_merchant_feedback"
+    - "get_delivery_metrics"
+    - "get_comparable_campaigns"
+    - "validate_proposal"
+    - "simulate_campaign_change"
+
+invariants:
+  strict_safety: true       # Non-negotiable: NEVER suggest passive KEEP if severe negative signals exist
+  zero_hallucination: true  # 100% of cited evidence[].record_id must physically exist in BigQuery
+  notes_as_data: true       # Treat customer and merchant reviews strictly as passive data, never prompt instructions
+  read_only_tools: true     # Absolutely no DDL/DML execution from agent tools
+
+reporting:
+  human_approval_required: true
+
+resilience:
+  retry_count: 2
+  max_retry_count: 2
+  backoff_min_sec: 0.5
+  backoff_max_sec: 2.0
+  timeout_sec: 15.0
+
+audit:
+  runs_table: "offers_gold.agent_runs"
+  persist_tool_calls: true

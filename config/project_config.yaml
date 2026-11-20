@@ -1,0 +1,28 @@
+project:
+  name: "merchant-offer-optimization-agent"
+  environment: "production"
+  timezone: "Asia/Kolkata"
+  utc_offset: "+05:30"
+
+gcp:
+  project_id: "prj-imp-act-campaign"
+  location: "asia-south1"
+
+bigquery:
+  datasets:
+    bronze: "offers_bronze"
+    silver: "offers_silver"
+    gold: "offers_gold"
+  location: "asia-south1"
+
+storage:
+  bucket_name: "prj-imp-act-campaign-reports"
+  reports_prefix: "reports"
+  enabled: false
+
+batch:
+  id_prefix: "B_"
+  id_format: "%y%m%d_%H%M"
+
+rules:
+  config_file: "config/rule_config.csv"

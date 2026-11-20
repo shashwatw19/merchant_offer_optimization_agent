@@ -1,0 +1,784 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Observability · Merchant Offer Agent{% endblock %}
+
+{% block content %}
+<section id="admin-view" class="admin-view" aria-labelledby="admin-title">
+  <!-- Page Header -->
+  <div class="admin-page-header">
+    <div>
+      <p class="eyebrow">Execution Observability &amp; Trace Analytics</p>
+      <h1 id="admin-title" class="admin-title">Admin Observability</h1>
+      <p class="subheading">Live performance telemetry, provider-reported token usage, and step-by-step LLM execution traces.</p>
+    </div>
+    <div class="admin-header-actions">
+      <button id="admin-refresh-top" class="btn-admin-secondary" type="button" title="Refresh metrics from data warehouse">
+        <svg class="btn-svg-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <path d="M21.5 2v6h-6M2.5 22v-6h6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M20.49 15a9 9 0 1 1-2.12-9.36L21.5 8M2.5 16l3.13-2.64A9 9 0 0 1 12 3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span>Refresh Telemetry</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- KPI Overview Stat Cards (Populated from Batch Averages) -->
+  <div id="admin-kpi-grid" class="admin-kpi-grid">
+    <div class="kpi-card">
+      <div class="kpi-header">
+        <span class="kpi-label">Total Investigations</span>
+        <div class="kpi-icon-wrap kpi-blue">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M9 11l3 3L22 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+      </div>
+      <div id="kpi-investigation-count" class="kpi-val font-mono">—</div>
+      <div class="kpi-subnote">Recorded across all pipeline runs</div>
+    </div>
+
+    <div class="kpi-card">
+      <div class="kpi-header">
+        <span class="kpi-label">Avg Execution Time</span>
+        <div class="kpi-icon-wrap kpi-amber">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
+            <polyline points="12 6 12 12 16 14" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+      </div>
+      <div id="kpi-avg-duration" class="kpi-val font-mono">—</div>
+      <div class="kpi-subnote">End-to-end investigation latency</div>
+    </div>
+
+    <div class="kpi-card">
+      <div class="kpi-header">
+        <span class="kpi-label">Avg Tokens / Run</span>
+        <div class="kpi-icon-wrap kpi-emerald">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+      </div>
+      <div id="kpi-avg-tokens" class="kpi-val font-mono">—</div>
+      <div class="kpi-subnote">Total prompt + candidates footprint</div>
+    </div>
+
+    <div class="kpi-card">
+      <div class="kpi-header">
+        <span class="kpi-label">Pipeline Engine</span>
+        <div class="kpi-icon-wrap kpi-purple">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="4" y="4" width="16" height="16" rx="2" stroke="currentColor" stroke-width="2"/>
+            <rect x="9" y="9" width="6" height="6" stroke="currentColor" stroke-width="2"/>
+            <line x1="9" y1="1" x2="9" y2="4" stroke="currentColor" stroke-width="2"/>
+            <line x1="15" y1="1" x2="15" y2="4" stroke="currentColor" stroke-width="2"/>
+            <line x1="9" y1="20" x2="9" y2="23" stroke="currentColor" stroke-width="2"/>
+            <line x1="15" y1="20" x2="15" y2="23" stroke="currentColor" stroke-width="2"/>
+          </svg>
+        </div>
+      </div>
+      <div class="kpi-val font-mono" style="font-size: 1.15rem; margin-top: 4px;">Gemini 3.5 Flash</div>
+      <div class="kpi-subnote">Google ADK Multi-turn Agent</div>
+    </div>
+  </div>
+
+  <!-- Batch Averages Breakdown (Expandable Details) -->
+  <details id="admin-batch-section" class="admin-panel-card admin-batch-details">
+    <summary class="admin-batch-summary">
+      <div class="batch-summary-left">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <path d="M4 6h16M4 12h16M4 18h7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+        <strong>Batch Averages Breakdown</strong>
+        <span class="batch-summary-badge" id="batch-count-badge">1 batch</span>
+      </div>
+      <span class="batch-toggle-label">View batch groupings ▾</span>
+    </summary>
+    <div class="admin-batch-content">
+      <div id="admin-batch-state" class="state" role="status"></div>
+      <div id="admin-batch-table-wrap" class="table-wrap" hidden>
+        <table class="admin-table batch-table" aria-label="Average investigation metrics by batch">
+          <thead>
+            <tr>
+              <th>Batch ID</th>
+              <th class="text-right">Investigations</th>
+              <th class="text-right">Avg Total Tokens</th>
+              <th class="text-right">Avg Time</th>
+            </tr>
+          </thead>
+          <tbody id="admin-batch-rows"></tbody>
+        </table>
+      </div>
+    </div>
+  </details>
+
+  <!-- Main Investigations Table Library Card -->
+  <div id="admin-library" class="admin-panel-card admin-library-card">
+    <!-- Card Header with Search Toolbar -->
+    <div class="admin-card-header">
+      <div class="admin-card-title-group">
+        <h2>Investigation Runs</h2>
+        <span id="admin-runs-count-pill" class="count-pill">Loading runs…</span>
+      </div>
+
+      <!-- Search & Filter Form -->
+      <form id="admin-filter" class="admin-search-toolbar">
+        <div class="search-input-wrapper">
+          <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <circle cx="11" cy="11" r="8" stroke="currentColor" stroke-width="2"/>
+            <line x1="21" y1="21" x2="16.65" y2="16.65" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+          <input
+            id="admin-search"
+            class="search-input"
+            type="search"
+            maxlength="128"
+            placeholder="Filter by Alert ID (e.g. A4668) or Campaign…"
+            autocomplete="off"
+          >
+          <button id="admin-search-clear" type="button" class="search-clear-btn" style="display:none;" title="Clear search">✕</button>
+        </div>
+        <button class="btn-admin-primary" type="submit">Filter</button>
+        <button id="admin-refresh" class="btn-admin-secondary" type="button">↻ Refresh</button>
+      </form>
+    </div>
+
+    <!-- Loading / Empty / Error State for Investigations -->
+    <div id="admin-state" class="state" role="status"></div>
+
+    <!-- Investigations Table -->
+    <div id="admin-table-wrap" class="table-wrap admin-main-table-wrap" hidden>
+      <table class="admin-table investigations-table" aria-label="Investigation execution metrics">
+        <thead>
+          <tr>
+            <th style="min-width: 140px;">Alert / Run</th>
+            <th style="min-width: 110px;">Campaign</th>
+            <th style="min-width: 170px;">Recorded (IST)</th>
+            <th style="min-width: 110px;">Status</th>
+            <th style="min-width: 100px;" class="text-right">Total Time</th>
+            <th style="min-width: 90px;" class="text-right">Input</th>
+            <th style="min-width: 90px;" class="text-right">Output</th>
+            <th style="min-width: 95px;" class="text-right">Reasoning</th>
+            <th style="min-width: 90px;" class="text-right">Cached</th>
+            <th style="min-width: 115px;" class="text-right">Total Tokens</th>
+            <th style="min-width: 120px;" class="text-center">Trace</th>
+          </tr>
+        </thead>
+        <tbody id="admin-rows"></tbody>
+      </table>
+    </div>
+
+    <!-- Pagination Footer -->
+    <div class="admin-pagination-bar">
+      <div class="pagination-info">
+        <span id="admin-page" class="pagination-text" aria-live="polite">Page 1</span>
+      </div>
+      <div class="pagination-buttons">
+        <button id="admin-prev" class="btn-admin-secondary btn-pagination" type="button" disabled>
+          ← Previous
+        </button>
+        <button id="admin-next" class="btn-admin-secondary btn-pagination" type="button" disabled>
+          Next →
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Detail / Trace View Section -->
+  <div id="admin-detail" class="admin-detail-view" hidden>
+    <div class="detail-nav-bar">
+      <a class="btn-back-link" href="#admin">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <path d="M19 12H5M12 5l-7 7 7 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        Back to all investigations
+      </a>
+    </div>
+
+    <div id="admin-detail-state" class="admin-panel-card state" role="status"></div>
+
+    <div id="admin-detail-content" class="admin-stack" hidden>
+      <!-- Hero Card for Run Trace -->
+      <section class="admin-panel-card trace-hero-card">
+        <div class="trace-hero-header">
+          <div>
+            <p class="section-kicker">Investigation Execution Trace</p>
+            <h2 id="admin-run-title" class="trace-title"></h2>
+            <p id="admin-run-meta" class="trace-meta font-mono"></p>
+          </div>
+          <div id="admin-run-status-badge" class="trace-status-badges"></div>
+        </div>
+
+        <p id="admin-run-error" class="trace-error-text"></p>
+        
+        <!-- Hero Compact Ribbon Metrics -->
+        <div class="ribbon-title">Session Telemetry Overview</div>
+        <div id="admin-compact-ribbon" class="compact-ribbon"></div>
+        
+        <!-- Collapsible Provider Token Breakdown -->
+        <details id="admin-tokens-details" class="trace-token-details" open>
+          <summary class="trace-details-summary">
+            <strong>Resource &amp; Token Breakdown (Provider Reported)</strong>
+            <span class="details-hint">Gemini Token Attribution</span>
+          </summary>
+          <div class="details-content">
+            <div id="admin-summary" class="metric-grid"></div>
+            <p id="admin-usage-note" class="side-note"></p>
+            <div class="notice notice-info">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" style="vertical-align:-2px; margin-right:4px;">
+                <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
+                <line x1="12" y1="8" x2="12" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                <line x1="12" y1="16" x2="12.01" y2="16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+              </svg>
+              Tool execution does not directly consume LLM tokens. Usage is accounted to the model turn requesting the tools. Cached tokens are an optimized subset of input tokens.
+            </div>
+          </div>
+        </details>
+      </section>
+
+      <!-- Step-by-Step Chronology Storyline -->
+      <section class="admin-panel-card trace-storyline-card">
+        <div class="storyline-header">
+          <div>
+            <p class="section-kicker">Multi-Turn Execution Storyline</p>
+            <h2 class="storyline-title">Execution Turns &amp; Tool Invocations</h2>
+          </div>
+          <div class="storyline-actions">
+            <button id="admin-expand-all" class="btn-admin-xs" type="button">Expand All</button>
+            <button id="admin-collapse-all" class="btn-admin-xs" type="button">Collapse All</button>
+          </div>
+        </div>
+        <div id="admin-turns-container" class="turns-container"></div>
+      </section>
+    </div>
+  </div>
+
+  <p class="admin-footnote">
+    Missing historical metrics are shown as <span class="font-mono">Not recorded</span>. <strong>*</strong> indicates a partial token subtotal where one or more model turns did not provide usage counters.
+  </p>
+</section>
+
+<script>
+  (function() {
+    let adminRequest = 0;
+    let batchAveragesRequest = 0;
+    let adminOffset = 0;
+    let adminNextOffset = null;
+    let adminFilter = "";
+    const adminPageSize = 25;
+
+    const tokenMetrics = [
+      ["input_tokens", "Input tokens", "prompt_token_count"],
+      ["output_tokens", "Output tokens", "candidates_token_count"],
+      ["reasoning_tokens", "Reasoning tokens", "thoughts_token_count"],
+      ["cached_input_tokens", "Cached input tokens", "cached_content_token_count"],
+      ["cache_creation_input_tokens", "Cache write tokens", null],
+      ["total_tokens", "Total tokens", "total_token_count"]
+    ];
+
+    const $ = id => document.getElementById(id);
+
+    function element(tag, text, className) {
+      const node = document.createElement(tag);
+      if (text !== undefined && text !== null) node.textContent = String(text);
+      if (className) node.className = className;
+      return node;
+    }
+
+    function valueOrUnavailable(value) {
+      return value === null || value === undefined || value === "" ? "—" : String(value);
+    }
+
+    function metricValue(value) {
+      return typeof value === "number" && Number.isFinite(value) ? value.toLocaleString("en-IN") : "—";
+    }
+
+    function averageValue(value) {
+      return typeof value === "number" && Number.isFinite(value)
+        ? value.toLocaleString("en-IN", { maximumFractionDigits: 1 })
+        : "—";
+    }
+
+    function duration(value) {
+      return typeof value === "number" && Number.isFinite(value) ? `${(value / 1000).toLocaleString("en-IN", { maximumFractionDigits: 2 })} s` : "—";
+    }
+
+    function tokenValue(metrics, key) {
+      const value = metrics && metrics.token_totals ? metrics.token_totals[key] : null;
+      const count = metrics && metrics.token_reporting ? metrics.token_reporting[key] : null;
+      const partial = typeof value === "number" && (typeof count !== "number" || count < (metrics.model_call_count || 1));
+      return metricValue(value) + (partial ? " *" : "");
+    }
+
+    function badge(text) {
+      const b = element("span", text, "badge font-mono");
+      const upper = String(text).toUpperCase();
+      if (upper === "SUCCESS" || upper === "COMPLETED" || upper === "COMPLETE" || upper === "CLEAR" || upper === "KEEP") {
+        b.className = "status-badge status-badge-resolved";
+      } else if (upper === "FAILED" || upper === "ERROR" || upper === "CANCELLED" || upper === "REJECT") {
+        b.className = "status-badge status-badge-error";
+      } else if (upper === "RUNNING" || upper === "PROCESSING" || upper === "TEST") {
+        b.className = "status-badge status-badge-processing";
+      } else {
+        b.className = "status-badge status-badge-open";
+      }
+      return b;
+    }
+
+    function metricCard(container, label, value, note = "") {
+      const card = element("div", null, "metric-stat-box");
+      card.append(element("span", label, "stat-label"), element("strong", value, "stat-value font-mono"));
+      if (note) card.append(element("small", note, "stat-subnote"));
+      container.append(card);
+    }
+
+    function setState(container, title, message, isError = false, retryFn = null) {
+      container.replaceChildren();
+      container.className = isError ? "state error" : "state";
+      container.hidden = false;
+      const t = element("strong", title);
+      const m = element("p", message);
+      container.append(t, m);
+      if (retryFn) {
+        const btn = element("button", "Try again", "btn-admin-secondary");
+        btn.type = "button";
+        btn.style.marginTop = "10px";
+        btn.onclick = retryFn;
+        container.append(btn);
+      }
+    }
+
+    async function fetchJson(url) {
+      const res = await fetch(url);
+      if (!res.ok) {
+        throw new Error(`Request failed with status ${res.status}`);
+      }
+      return await res.json();
+    }
+
+    function jsonDetails(container, title, data) {
+      const details = element("details", null, "json-inspector-details");
+      const sum = element("summary", title);
+      const pre = element("pre", JSON.stringify(data, null, 2));
+      details.append(sum, pre);
+      container.append(details);
+    }
+
+    async function loadBatchAverages() {
+      const requestId = ++batchAveragesRequest;
+      $("admin-batch-table-wrap").hidden = true;
+      setState($("admin-batch-state"), "Loading batch averages", "Please wait a moment.");
+      try {
+        const data = await fetchJson("/api/admin/batch-averages");
+        if (requestId !== batchAveragesRequest) return;
+        if (!Array.isArray(data.batches)) throw new Error("Invalid batch averages");
+        
+        if (!data.batches.length) {
+          setState($("admin-batch-state"), "No batch metrics found", "Batch averages will appear after investigation runs are recorded.");
+          return;
+        }
+
+        // Compute aggregate totals for the KPI cards
+        let totalInvestigations = 0;
+        let weightedTokensSum = 0;
+        let tokensSampleSum = 0;
+        let weightedDurationSum = 0;
+        let durationSampleSum = 0;
+
+        for (const b of data.batches) {
+          totalInvestigations += (b.investigation_count || 0);
+          if (b.avg_total_tokens && b.token_sample_count) {
+            weightedTokensSum += (b.avg_total_tokens * b.token_sample_count);
+            tokensSampleSum += b.token_sample_count;
+          }
+          if (b.avg_duration_ms && b.duration_sample_count) {
+            weightedDurationSum += (b.avg_duration_ms * b.duration_sample_count);
+            durationSampleSum += b.duration_sample_count;
+          }
+        }
+
+        // Update KPI Header Cards
+        $("kpi-investigation-count").textContent = totalInvestigations.toLocaleString("en-IN");
+        $("kpi-avg-duration").textContent = durationSampleSum > 0 ? duration(weightedDurationSum / durationSampleSum) : "—";
+        $("kpi-avg-tokens").textContent = tokensSampleSum > 0 ? averageValue(weightedTokensSum / tokensSampleSum) : "—";
+
+        // Update Batch Summary Badge
+        $("batch-count-badge").textContent = `${data.batches.length} batch${data.batches.length > 1 ? 'es' : ''}`;
+
+        // Populate Batch Table Rows
+        const rows = $("admin-batch-rows");
+        rows.replaceChildren();
+        for (const batch of data.batches) {
+          const row = element("tr");
+          const batchName = (batch.batch_id === "OFFER_AGENT_RUN" || batch.batch_id === "AGENT_RUN")
+            ? "Standard runs (batch not customized)"
+            : valueOrUnavailable(batch.batch_id);
+
+          const tdBatch = element("td");
+          const batchPill = element("span", batchName, "batch-name-badge");
+          tdBatch.append(batchPill);
+
+          const tdCount = element("td", metricValue(batch.investigation_count), "text-right font-mono");
+
+          const tokenCell = element("td", null, "text-right");
+          const tokenDetail = element("div", null, "batch-metric-box");
+          tokenDetail.append(
+            element("span", averageValue(batch.avg_total_tokens), "font-mono font-bold"),
+            element("small", `${metricValue(batch.token_sample_count)} runs with tokens`)
+          );
+          tokenCell.append(tokenDetail);
+
+          const durationCell = element("td", null, "text-right");
+          const durationDetail = element("div", null, "batch-metric-box");
+          durationDetail.append(
+            element("span", duration(batch.avg_duration_ms), "font-mono font-bold"),
+            element("small", `${metricValue(batch.duration_sample_count)} runs with timing`)
+          );
+          durationCell.append(durationDetail);
+
+          row.append(tdBatch, tdCount, tokenCell, durationCell);
+          rows.append(row);
+        }
+        $("admin-batch-state").hidden = true;
+        $("admin-batch-table-wrap").hidden = false;
+      } catch (error) {
+        if (requestId !== batchAveragesRequest) return;
+        setState(
+          $("admin-batch-state"),
+          "Unable to load batch averages",
+          "Check your connection and warehouse access, then try again.",
+          true,
+          loadBatchAverages
+        );
+      }
+    }
+
+    async function loadAdmin(offset = 0) {
+      const requestId = ++adminRequest;
+      loadBatchAverages();
+      adminOffset = offset;
+      adminNextOffset = null;
+      $("admin-library").hidden = false;
+      $("admin-detail").hidden = true;
+      $("admin-table-wrap").hidden = true;
+      $("admin-prev").disabled = true;
+      $("admin-next").disabled = true;
+      $("admin-page").textContent = "";
+      setState($("admin-state"), "Loading investigation metrics", "Please wait a moment while fetching warehouse logs…");
+      try {
+        const data = await fetchJson(`/api/admin/investigations?limit=${adminPageSize}&offset=${offset}&alert_id=${encodeURIComponent(adminFilter)}`);
+        if (requestId !== adminRequest) return;
+        if (!Array.isArray(data.investigations)) throw new Error("Invalid metrics list");
+        
+        const rows = $("admin-rows");
+        rows.replaceChildren();
+        adminNextOffset = data.next_offset;
+        $("admin-prev").disabled = offset === 0;
+        $("admin-next").disabled = adminNextOffset === null;
+        $("admin-page").textContent = `Page ${Math.floor(offset / adminPageSize) + 1}`;
+        
+        const countPill = $("admin-runs-count-pill");
+        if (adminFilter) {
+          countPill.textContent = `${data.investigations.length} matching "${adminFilter}"`;
+          $("admin-search-clear").style.display = "inline-flex";
+        } else {
+          countPill.textContent = `${data.investigations.length} runs recorded`;
+          $("admin-search-clear").style.display = "none";
+        }
+
+        if (!data.investigations.length) {
+          setState($("admin-state"), "No investigation runs found", adminFilter ? `No runs match filter "${adminFilter}". Try another keyword or clear filter.` : "Investigation runs will appear here as soon as alerts are investigated.");
+          return;
+        }
+
+        for (const run of data.investigations) {
+          const metrics = run.execution_metrics;
+          const row = element("tr");
+
+          // 1. Alert / Run
+          const tdAlert = element("td");
+          const alertLink = element("a", null, "table-alert-link");
+          alertLink.href = `#admin/${encodeURIComponent(run.run_key)}`;
+          const alertCode = element("span", valueOrUnavailable(run.alert_id), "alert-id-code");
+          const runBadge = element("span", `Run #${valueOrUnavailable(run.run_number)}`, "run-number-pill");
+          alertLink.append(alertCode, runBadge);
+          tdAlert.append(alertLink);
+          row.append(tdAlert);
+
+          // 2. Campaign
+          const tdCampaign = element("td");
+          const campPill = element("span", valueOrUnavailable(run.campaign_id), "campaign-badge-pill");
+          tdCampaign.append(campPill);
+          row.append(tdCampaign);
+
+          // 3. Recorded IST
+          const tdTime = element("td", valueOrUnavailable(run.run_time_ist), "font-mono text-sm muted");
+          row.append(tdTime);
+
+          // 4. Status
+          const tdStatus = element("td");
+          const statusText = run.run_status === "not_recorded" ? "Not recorded" : valueOrUnavailable(run.run_status);
+          tdStatus.append(badge(statusText));
+          row.append(tdStatus);
+
+          // 5. Total Time
+          const tdDuration = element("td", duration(run.duration_ms), "font-mono text-right text-sm font-semibold");
+          row.append(tdDuration);
+
+          // 6-9. Token Breakdown columns
+          const tokenKeys = ["input_tokens", "output_tokens", "reasoning_tokens", "cached_input_tokens"];
+          tokenKeys.forEach(k => {
+            const tdTok = element("td", tokenValue(metrics, k), "font-mono text-right text-sm");
+            row.append(tdTok);
+          });
+
+          // 10. Total Tokens (Highlighted)
+          const tdTotal = element("td", null, "font-mono text-right");
+          const totalVal = tokenValue(metrics, "total_tokens");
+          const totalSpan = element("span", totalVal, "total-token-chip");
+          tdTotal.append(totalSpan);
+          row.append(tdTotal);
+
+          // 12. Actions
+          const tdAction = element("td", null, "text-center");
+          const traceBtn = element("a", "View Trace →", "btn-table-trace");
+          traceBtn.href = `#admin/${encodeURIComponent(run.run_key)}`;
+          tdAction.append(traceBtn);
+          row.append(tdAction);
+
+          rows.append(row);
+        }
+
+        $("admin-state").hidden = true;
+        $("admin-table-wrap").hidden = false;
+      } catch (error) {
+        if (requestId !== adminRequest) return;
+        setState($("admin-state"), "Unable to load metrics", "Check your connection and warehouse access, then try again.", true, () => loadAdmin(offset));
+      }
+    }
+
+    function renderAdminRun(run) {
+      const metrics = run.execution_metrics;
+      const cid = run.campaign_id ? ` · ${run.campaign_id}` : "";
+      $("admin-run-title").textContent = `${valueOrUnavailable(run.alert_id)} · Run ${valueOrUnavailable(run.run_number)}${cid}`;
+      $("admin-run-meta").textContent = `${valueOrUnavailable(run.run_time_ist)} | Run Key: ${run.run_key}`;
+      
+      const statusBadge = $("admin-run-status-badge");
+      statusBadge.replaceChildren();
+      const statusText = run.run_status === "not_recorded" ? "Not recorded" : valueOrUnavailable(run.run_status);
+      statusBadge.append(badge(statusText));
+      if (run.recommendation) {
+        statusBadge.append(badge(run.recommendation));
+      }
+      
+      $("admin-run-error").textContent = metrics && metrics.error ? `Error: ${metrics.error}` : "";
+      
+      // 1. Compact Hero Ribbon
+      const ribbon = $("admin-compact-ribbon");
+      ribbon.replaceChildren();
+      
+      const addPill = (label, value) => {
+        const pill = element("div", null, "compact-pill");
+        pill.append(element("small", label), element("strong", value));
+        ribbon.append(pill);
+      };
+      
+      addPill("Total Time", duration(run.duration_ms));
+      addPill("Agent Time", duration(metrics && metrics.agent_duration_ms));
+      addPill("Total Tokens", tokenValue(metrics, "total_tokens"));
+      addPill("Model Requests", metricValue(metrics && metrics.model_call_count));
+      addPill("Executed Tools", metricValue(metrics && metrics.tool_call_count));
+      addPill("Attempts / Retries", `${metricValue(metrics && metrics.attempt_count)} / ${metricValue(metrics && metrics.retry_count)}`);
+
+      // 2. Resource & Token Breakdown Summary
+      const summary = $("admin-summary");
+      summary.replaceChildren();
+      for (const [key, label] of tokenMetrics) {
+        const count = metrics && metrics.token_reporting ? metrics.token_reporting[key] : null;
+        metricCard(summary, label, tokenValue(metrics, key), metrics ? `${metricValue(count)} / ${metricValue(metrics.model_call_count)} turns reported` : "");
+      }
+      $("admin-usage-note").textContent = !metrics ? "Metrics were not recorded for this historical run." :
+        metrics.usage_complete ? "Provider usage totals recorded for all model turns. Window: " + valueOrUnavailable(metrics.started_at) + " to " + valueOrUnavailable(metrics.ended_at) :
+        "Usage is a partial observed subtotal. Window: " + valueOrUnavailable(metrics.started_at) + " to " + valueOrUnavailable(metrics.ended_at);
+
+      // 3. Step-by-Step Chronology Storyline
+      const turnsContainer = $("admin-turns-container");
+      turnsContainer.replaceChildren();
+
+      const models = metrics && Array.isArray(metrics.model_calls) ? metrics.model_calls : [];
+      const tools = Array.isArray(run.tool_calls) ? run.tool_calls : [];
+
+      if (!models.length && !tools.length) {
+        turnsContainer.append(element("p", "No execution turns or tool calls recorded for this run.", "muted"));
+      } else {
+        const toolsByModel = new Map();
+        const unassociatedTools = [];
+
+        tools.forEach(tool => {
+          if (tool.model_call_id) {
+            if (!toolsByModel.has(tool.model_call_id)) toolsByModel.set(tool.model_call_id, []);
+            toolsByModel.get(tool.model_call_id).push(tool);
+          } else {
+            unassociatedTools.push(tool);
+          }
+        });
+
+        if (unassociatedTools.length) {
+          const miscDetails = element("details", null, "turn-card");
+          const miscSummary = element("summary");
+          miscSummary.append(
+            element("strong", "⚡ Prefetch & Standalone Operations"),
+            element("span", `${unassociatedTools.length} calls (0 direct model tokens)`, "turn-badge")
+          );
+          miscDetails.append(miscSummary);
+
+          const miscContent = element("div", null, "details-content");
+          unassociatedTools.forEach(tool => {
+            const toolDetails = element("details", null, "tool-subcard");
+            const toolSummary = element("summary");
+            toolSummary.append(
+              element("strong", `🛠️ ${valueOrUnavailable(tool.tool || tool.name)}`),
+              element("span", ` · ${tool.status || "success"} (${duration(tool.duration_ms)})`, "muted")
+            );
+            toolDetails.append(toolSummary);
+            const toolBody = element("div", null, "details-content");
+            jsonDetails(toolBody, "Inspect Parameters & Output", { input: tool.input || tool.args, output: tool.output || tool.response });
+            toolDetails.append(toolBody);
+            miscContent.append(toolDetails);
+          });
+          miscDetails.append(miscContent);
+          turnsContainer.append(miscDetails);
+        }
+
+        models.forEach((call, index) => {
+          const turnDetails = element("details", null, "turn-card");
+          turnDetails.open = (index === 0 || index === models.length - 1);
+
+          const turnSummary = element("summary");
+          const titleBox = element("div", null, "turn-summary-left");
+          titleBox.append(
+            element("span", `Turn ${index + 1}`, "turn-index-pill"),
+            element("strong", valueOrUnavailable(call.model), "turn-model-name"),
+            element("span", ` · ${duration(call.duration_ms)} · ${call.status || "success"}`, "muted text-sm")
+          );
+          const badgeBox = element("div");
+          const turnTokens = call.usage && call.usage.total_token_count ? `${metricValue(call.usage.total_token_count)} tokens` : "Token count pending";
+          badgeBox.append(element("span", turnTokens, "turn-badge font-mono"));
+          turnSummary.append(titleBox, badgeBox);
+          turnDetails.append(turnSummary);
+
+          const content = element("div", null, "details-content");
+          content.append(element("p", `Request ID: ${call.model_call_id} | Attempt: ${call.attempt} | Timestamp: ${valueOrUnavailable(call.started_at)}`, "side-note run-id"));
+          if (call.error) content.append(element("p", `Turn Error: ${call.error}`, "side-note", { style: "color: #b91c1c;" }));
+
+          const grid = element("div", null, "compact-ribbon");
+          for (const [key, label, providerKey] of tokenMetrics) {
+            const value = providerKey ? call.usage && call.usage[providerKey] : call[key];
+            if (value !== undefined && value !== null) {
+              const pill = element("div", null, "compact-pill");
+              pill.append(element("small", label), element("strong", metricValue(value)));
+              grid.append(pill);
+            }
+          }
+          if (grid.children.length) content.append(grid);
+
+          const turnTools = toolsByModel.get(call.model_call_id) || [];
+          if (turnTools.length) {
+            const toolSection = element("div", null, "admin-stack");
+            toolSection.style.marginTop = "14px";
+            toolSection.append(element("h4", `Tools Executed in this Turn (${turnTools.length})`, "section-kicker"));
+
+            turnTools.forEach(tool => {
+              const toolDetails = element("details", null, "tool-subcard");
+              const toolSummary = element("summary");
+              toolSummary.append(
+                element("strong", `🛠️ ${valueOrUnavailable(tool.tool || tool.name)}`),
+                element("span", ` · ${tool.status || "success"} (${duration(tool.duration_ms)})`, "muted text-sm")
+              );
+              toolDetails.append(toolSummary);
+
+              const toolBody = element("div", null, "details-content");
+              toolBody.append(element("p", `Call ID: ${valueOrUnavailable(tool.tool_call_id)} | Start: ${tool.started_at || "N/A"} | End: ${tool.ended_at || "N/A"}`, "side-note run-id"));
+              if (tool.error) toolBody.append(element("p", `Error: ${tool.error}`, "side-note"));
+              jsonDetails(toolBody, "Inspect Input Arguments & Tool Output", { input: tool.input || tool.args, output: tool.output || tool.response });
+              toolDetails.append(toolBody);
+              toolSection.append(toolDetails);
+            });
+            content.append(toolSection);
+          } else {
+            content.append(element("p", "No tool calls generated during this turn (direct text or final verdict output).", "side-note"));
+          }
+
+          jsonDetails(content, "Raw Turn Request & Modality Breakdown", call.usage);
+          turnDetails.append(content);
+          turnsContainer.append(turnDetails);
+        });
+      }
+
+      $("admin-expand-all").onclick = () => {
+        turnsContainer.querySelectorAll("details").forEach(d => d.open = true);
+      };
+      $("admin-collapse-all").onclick = () => {
+        turnsContainer.querySelectorAll("details").forEach(d => d.open = false);
+      };
+    }
+
+    async function showAdminRun(runKey) {
+      const requestId = ++adminRequest;
+      $("admin-library").hidden = true;
+      $("admin-detail").hidden = false;
+      $("admin-detail-content").hidden = true;
+      setState($("admin-detail-state"), "Loading investigation trace", "Fetching complete turn-by-turn logs…");
+      try {
+        const run = await fetchJson(`/api/admin/investigations/${encodeURIComponent(runKey)}`);
+        if (requestId !== adminRequest) return;
+        renderAdminRun(run);
+        $("admin-detail-state").hidden = true;
+        $("admin-detail-content").hidden = false;
+      } catch (error) {
+        if (requestId !== adminRequest) return;
+        setState($("admin-detail-state"), "Unable to load this investigation", "Metrics may be unavailable or unreadable. Please try again.", true, () => showAdminRun(runKey));
+      }
+    }
+
+    function navigate() {
+      const hash = location.hash;
+      if (hash.startsWith("#admin/")) {
+        try {
+          const runKey = decodeURIComponent(hash.slice("#admin/".length));
+          if (runKey) {
+            showAdminRun(runKey);
+            return;
+          }
+        } catch (e) {
+          console.error(e);
+        }
+      }
+      loadAdmin(adminOffset);
+    }
+
+    $("admin-filter").addEventListener("submit", event => {
+      event.preventDefault();
+      adminFilter = $("admin-search").value.trim();
+      loadAdmin(0);
+    });
+
+    $("admin-search-clear").addEventListener("click", () => {
+      $("admin-search").value = "";
+      adminFilter = "";
+      loadAdmin(0);
+    });
+
+    $("admin-refresh").addEventListener("click", () => loadAdmin(adminOffset));
+    $("admin-refresh-top").addEventListener("click", () => loadAdmin(adminOffset));
+    $("admin-prev").addEventListener("click", () => loadAdmin(Math.max(0, adminOffset - adminPageSize)));
+    $("admin-next").addEventListener("click", () => {
+      if (adminNextOffset !== null) loadAdmin(adminNextOffset);
+    });
+    window.addEventListener("hashchange", navigate);
+    navigate();
+  })();
+</script>
+{% endblock %}

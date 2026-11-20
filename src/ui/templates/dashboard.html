@@ -1,0 +1,302 @@
+{% extends "base.html" %}
+
+{% block title %}Alerts &amp; Reports · Merchant Offer Agent{% endblock %}
+
+{% block content %}
+<section id="library-view" aria-labelledby="library-title" class="alerts-workspace">
+  <!-- Page Header -->
+  <div class="page-intro">
+    <div>
+      <p class="eyebrow">Alert Management Queue &middot; Investigation Workspace</p>
+      <h1 id="library-title">
+        Alerts &amp; Investigations
+        {% if alerts %}
+          <span class="count-badge" id="total-alerts-badge">{{ alerts | length }}</span>
+        {% endif %}
+      </h1>
+      <p class="muted">Review active campaign signals and explore evidence-backed agent investigations.</p>
+    </div>
+    <div class="intro-actions">
+      <a href="/" class="btn-admin-secondary" title="Refresh alerts list">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" style="vertical-align:-2px;">
+          <path d="M21.5 2v6h-6M2.5 22v-6h6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M20.49 15a9 9 0 1 1-2.12-9.36L21.5 8M2.5 16l3.13-2.64A9 9 0 0 1 12 3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span>Refresh alerts</span>
+      </a>
+    </div>
+  </div>
+
+  {% if alerts %}
+    <!-- Filter Bar Card (matching Fraud Agent layout) -->
+    <div class="panel alerts-panel">
+      <div class="filters-bar">
+        <div class="filter-item filter-search">
+          <label for="search-input">Search Alert or Campaign</label>
+          <div class="search-input-wrapper">
+            <svg class="search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+              <circle cx="11" cy="11" r="8" stroke="currentColor" stroke-width="2"/>
+              <line x1="21" y1="21" x2="16.65" y2="16.65" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+            <input
+              id="search-input"
+              type="search"
+              placeholder="e.g. A4668, CMP310 or M001…"
+              autocomplete="off"
+            >
+          </div>
+        </div>
+
+        <div class="filter-item">
+          <label for="status-filter">Status</label>
+          <select id="status-filter" class="filter-select">
+            <option value="">All status</option>
+            <option value="OPEN">Open</option>
+            <option value="RESOLVED">Resolved</option>
+            <option value="PROCESSING">Processing</option>
+          </select>
+        </div>
+
+        <div class="filter-item">
+          <label for="rule-filter">Triggered Rule</label>
+          <select id="rule-filter" class="filter-select">
+            <option value="">All rules</option>
+            <option value="R1">R1: Low redemption rate</option>
+            <option value="R2">R2: Sudden redemption drop</option>
+            <option value="R3">R3: Existing-customer dominance</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Table Section Heading -->
+      <div class="table-heading-bar">
+        <div class="table-heading-left">
+          <h2>Alerts &amp; Investigation Reports</h2>
+        </div>
+        <span id="result-count" class="result-count-text" aria-live="polite">{{ alerts | length }} alerts</span>
+      </div>
+
+      <!-- Main Alerts Table (Only necessary alert info) -->
+      <div id="table-wrap" class="table-wrap">
+        <table class="alerts-table" aria-label="Campaign alerts and investigation reports">
+          <thead>
+            <tr>
+              <th scope="col" style="min-width: 120px;">Alert</th>
+              <th scope="col" style="min-width: 150px;">Campaign &amp; Merchant</th>
+              <th scope="col" style="min-width: 220px;">Triggered Rule</th>
+              <th scope="col" style="min-width: 170px;">Observed vs Threshold</th>
+              <th scope="col" style="min-width: 120px;">Created Date</th>
+              <th scope="col" style="min-width: 110px;">Status</th>
+              <th scope="col" style="min-width: 180px;" class="text-right">Investigation Report</th>
+            </tr>
+          </thead>
+          <tbody id="alert-rows">
+            {% for alert in alerts %}
+              <tr
+                class="alert-row"
+                data-alert-id="{{ alert.alert_id | lower }}"
+                data-campaign-id="{{ (alert.campaign_id or '') | lower }}"
+                data-merchant-id="{{ (alert.merchant_id or '') | lower }}"
+                data-status="{{ alert.status | upper }}"
+                data-rule-id="{{ alert.rule_id | upper }}"
+              >
+                <!-- 1. Alert ID -->
+                <td>
+                  <span class="alert-code-pill font-mono">{{ alert.alert_id }}</span>
+                </td>
+
+                <!-- 2. Campaign & Merchant -->
+                <td>
+                  <div class="campaign-cell">
+                    <span class="campaign-pill">Campaign {{ alert.campaign_id }}</span>
+                    <span class="merchant-subtext">Merchant: <strong>{{ alert.merchant_name or alert.merchant_id or "—" }}</strong>{% if alert.merchant_name and alert.merchant_id and alert.merchant_name != alert.merchant_id %} <span class="muted font-mono">({{ alert.merchant_id }})</span>{% endif %}</span>
+                  </div>
+                </td>
+
+                <!-- 3. Triggered Rule -->
+                <td>
+                  <div class="rule-cell">
+                    <div class="rule-title-line">
+                      <span class="rule-id-tag">{{ alert.rule_id }}</span>
+                      <strong class="rule-title-text">{{ alert.rule_name }}</strong>
+                    </div>
+                    <span class="rule-desc-text">{{ alert.rule_meaning }}</span>
+                  </div>
+                </td>
+
+                <!-- 4. Observed vs Threshold Metric -->
+                <td>
+                  <div class="metric-comparison-cell">
+                    <div class="metric-values-row">
+                      <span class="metric-val-observed font-mono">
+                        {{ alert.metric_value if alert.metric_value is not none else "—" }}{% if alert.metric_value is not none and alert.metric_name and ('rate' in alert.metric_name or 'pct' in alert.metric_name or 'share' in alert.metric_name) %}%{% endif %}
+                      </span>
+                      <span class="metric-vs-divider">/</span>
+                      <span class="metric-val-threshold font-mono">
+                        {{ alert.threshold_value if alert.threshold_value is not none else "—" }}{% if alert.threshold_value is not none and alert.metric_name and ('rate' in alert.metric_name or 'pct' in alert.metric_name or 'share' in alert.metric_name) %}%{% endif %}
+                      </span>
+                    </div>
+                    <span class="metric-timeline-hint">
+                      {% if alert.rule_id == 'R2' and alert.timeline and alert.timeline.p2_label %}
+                        {{ alert.timeline.p2_label }}
+                      {% elif alert.timeline and alert.timeline.start_date and alert.timeline.end_date and alert.timeline.start_date != 'Campaign Start' %}
+                        {{ alert.timeline.start_date }} to {{ alert.timeline.end_date }}
+                      {% else %}
+                        Observed vs Policy Threshold
+                      {% endif %}
+                    </span>
+                  </div>
+                </td>
+
+                <!-- 5. Created Date -->
+                <td>
+                  <span class="font-mono text-sm muted">
+                    {{ (alert.created_at or "—") | string | truncate(10, True, "") }}
+                  </span>
+                </td>
+
+                <!-- 6. Status -->
+                <td>
+                  <span class="status-badge status-badge-{{ alert.status | lower }}">
+                    {% if alert.status == 'OPEN' %}
+                      <span class="status-dot" aria-hidden="true"></span>
+                    {% endif %}
+                    {{ alert.status }}
+                  </span>
+                </td>
+
+                <!-- 7. Report Action: View report / Run investigation -->
+                <td class="text-right">
+                  <div class="report-action-cell">
+                    {% if alert.has_report or alert.status == 'RESOLVED' %}
+                      <!-- View Report (Primary) -->
+                      <a class="btn-view-report" href="{{ url_for('view_report', alert_id=alert.alert_id) }}">
+                        <span>View report</span>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                          <path d="M5 12h14M12 5l7 7-7 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                      </a>
+
+                      <!-- Re-run form -->
+                      <form method="post" action="{{ url_for('investigate_alert', alert_id=alert.alert_id) }}" class="run-form inline-form">
+                        <button type="submit" class="btn-rerun-icon" title="Re-run investigation">
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                            <path d="M21.5 2v6h-6M2.5 22v-6h6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            <path d="M20.49 15a9 9 0 1 1-2.12-9.36L21.5 8M2.5 16l3.13-2.64A9 9 0 0 1 12 3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                          </svg>
+                        </button>
+                      </form>
+                    {% else %}
+                      <!-- Run investigation (Primary when no report yet) -->
+                      <form method="post" action="{{ url_for('investigate_alert', alert_id=alert.alert_id) }}" class="run-form">
+                        <button type="submit" class="btn-run-investigation">
+                          <span class="btn-label">Run investigation</span>
+                          <span class="btn-spinner" aria-hidden="true"></span>
+                        </button>
+                      </form>
+                    {% endif %}
+                  </div>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Filter Empty State (Hidden by default) -->
+      <div id="filter-empty" class="filter-empty-state" style="display: none;">
+        <span class="empty-icon" aria-hidden="true">🔍</span>
+        <h2>No alerts match your filter</h2>
+        <p>Try clearing your search or changing the status and rule dropdowns.</p>
+        <button type="button" class="btn-admin-secondary" onclick="resetFilters()" style="margin-top: 10px;">
+          Clear filters
+        </button>
+      </div>
+    </div>
+  {% else %}
+    <section class="empty-state panel">
+      <span class="empty-icon" aria-hidden="true">✓</span>
+      <h2>No open alerts</h2>
+      <p>There are no active alerts to investigate right now. Check back during the next evaluation cycle.</p>
+    </section>
+  {% endif %}
+</section>
+
+<script>
+  (function() {
+    const searchInput = document.getElementById('search-input');
+    const statusFilter = document.getElementById('status-filter');
+    const ruleFilter = document.getElementById('rule-filter');
+    const resultCount = document.getElementById('result-count');
+    const filterEmpty = document.getElementById('filter-empty');
+    const tableWrap = document.getElementById('table-wrap');
+    const rows = document.querySelectorAll('.alert-row');
+
+    function applyFilters() {
+      if (!rows.length) return;
+      const search = (searchInput ? searchInput.value : '').trim().toLowerCase();
+      const status = (statusFilter ? statusFilter.value : '').toUpperCase();
+      const rule = (ruleFilter ? ruleFilter.value : '').toUpperCase();
+
+      let visibleCount = 0;
+
+      rows.forEach(function(row) {
+        const rowAlertId = row.getAttribute('data-alert-id') || '';
+        const rowCampaignId = row.getAttribute('data-campaign-id') || '';
+        const rowMerchantId = row.getAttribute('data-merchant-id') || '';
+        const rowStatus = row.getAttribute('data-status') || '';
+        const rowRuleId = row.getAttribute('data-rule-id') || '';
+
+        const matchesSearch = !search ||
+          rowAlertId.includes(search) ||
+          rowCampaignId.includes(search) ||
+          rowMerchantId.includes(search);
+
+        const matchesStatus = !status || (rowStatus === status);
+        const matchesRule = !rule || (rowRuleId === rule);
+
+        const isVisible = matchesSearch && matchesStatus && matchesRule;
+        row.style.display = isVisible ? '' : 'none';
+        if (isVisible) visibleCount++;
+      });
+
+      if (resultCount) {
+        resultCount.textContent = `${visibleCount} alert${visibleCount === 1 ? '' : 's'}`;
+      }
+
+      if (tableWrap && filterEmpty) {
+        if (visibleCount === 0) {
+          tableWrap.style.display = 'none';
+          filterEmpty.style.display = 'block';
+        } else {
+          tableWrap.style.display = '';
+          filterEmpty.style.display = 'none';
+        }
+      }
+    }
+
+    if (searchInput) searchInput.addEventListener('input', applyFilters);
+    if (statusFilter) statusFilter.addEventListener('change', applyFilters);
+    if (ruleFilter) ruleFilter.addEventListener('change', applyFilters);
+
+    window.resetFilters = function() {
+      if (searchInput) searchInput.value = '';
+      if (statusFilter) statusFilter.value = '';
+      if (ruleFilter) ruleFilter.value = '';
+      applyFilters();
+    };
+
+    // Loading indicator on Run investigation submit
+    document.querySelectorAll('.run-form').forEach(function(form) {
+      form.addEventListener('submit', function() {
+        const btn = form.querySelector('button[type="submit"]');
+        if (!btn) return;
+        btn.classList.add('loading');
+        btn.disabled = true;
+        const label = btn.querySelector('.btn-label');
+        if (label) label.textContent = 'Running…';
+      });
+    });
+  })();
+</script>
+{% endblock %}

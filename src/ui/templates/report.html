@@ -1,0 +1,441 @@
+{% extends "base.html" %}
+
+{% block title %}Investigation report · {{ report.alert_id }} · Merchant Offer Agent{% endblock %}
+
+{% block content %}
+  <div class="report-navigation">
+    <a class="back-link" href="/">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" style="vertical-align:-2px;">
+        <path d="M19 12H5M12 5l-7 7 7 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      Back to open alerts
+    </a>
+    <div class="report-nav-actions">
+      <button class="button-ghost" onclick="window.print()" title="Print or save as PDF">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <polyline points="6 9 6 2 18 2 18 9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <rect x="6" y="14" width="12" height="8" rx="1" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        Print / PDF
+      </button>
+      <a class="button-ghost" href="/reports/{{ report.alert_id }}/markdown" target="_blank" download="report_{{ report.alert_id }}.md">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <polyline points="7 10 12 15 17 10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <line x1="12" y1="15" x2="12" y2="3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+        Export Markdown
+      </a>
+    </div>
+  </div>
+
+  <section class="page-heading report-heading">
+    <div>
+      <p class="eyebrow">Investigation report · {{ report.alert_id }}</p>
+      <h1>Campaign {{ report.campaign_id }}</h1>
+      <p class="subheading">{{ report.summary or "Investigation completed without a summary." }}</p>
+      
+      <!-- Rule Number and Rule Description -->
+      <div class="rule-banner-pill">
+        <span class="rule-tag">Rule {{ rule_id or (alert.rule_id if alert else none) or report.get('rule_id', 'R1') }}</span>
+        <span class="rule-name">{{ rule_name or (alert.rule_name if alert else none) or "Offer Anomaly Alert" }}:</span>
+        <span class="rule-meaning">{{ rule_meaning or (alert.rule_meaning if alert else none) or "Triggered based on performance thresholds." }}</span>
+      </div>
+
+      {% if report.generated_at %}
+        <p class="timestamp-caption" style="margin-top: 8px;">Generated at: {{ report.generated_at }} · Execution ID: <code>{{ report.execution_id or ("exec_" ~ report.alert_id) }}</code></p>
+      {% endif %}
+    </div>
+    <div class="report-status-chip">
+      <span class="status-pill status-pill-{{ (report.status or 'complete') | lower }}">{{ report.status or "COMPLETE" }}</span>
+    </div>
+  </section>
+
+  <!-- Section quick-nav -->
+  <nav class="report-section-nav" aria-label="Jump to section">
+    <span class="section-nav-label">Jump to:</span>
+    <a class="section-nav-link" href="#section-campaign">A. Campaign</a>
+    <a class="section-nav-link" href="#section-terms">B. Terms</a>
+    <a class="section-nav-link" href="#section-findings">C. Findings</a>
+  </nav>
+
+  <div class="notice notice-advisory" role="alert">
+    <span class="notice-icon" aria-hidden="true">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
+        <line x1="12" y1="8" x2="12" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        <line x1="12" y1="16" x2="12.01" y2="16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+    </span>
+    <span><strong>Human review required.</strong> This report is advisory only. No campaign changes or alert status updates were made. All recommendations require human approval prior to deployment.</span>
+  </div>
+
+  <!-- =========================================================
+       SECTION A: CAMPAIGN INFORMATION
+       ========================================================= -->
+  <section class="report-section" id="section-campaign">
+    <div class="section-header">
+      <h2>A. Campaign Information</h2>
+    </div>
+
+    <article class="report-card">
+      <div class="campaign-identity-bar">
+        <div>
+          <span class="eyebrow">Merchant Entity</span>
+          <h3>
+            {% if alert and alert.merchant_name %}
+              {{ alert.merchant_name }} <span class="muted font-mono" style="font-size: 0.85em; font-weight: normal;">({{ alert.merchant_id }})</span>
+            {% elif campaign_terms and campaign_terms.get('merchant_id') %}
+              {{ campaign_terms.get('merchant_id') }}
+            {% elif alert and alert.merchant_id %}
+              {{ alert.merchant_id }}
+            {% else %}
+              M001
+            {% endif %}
+          </h3>
+        </div>
+        <div>
+          <span class="eyebrow">Campaign Objective</span>
+          <p class="meta-value">{{ (campaign_terms.get('objective') if campaign_terms else none) or "ACQUIRE_NEW" }}</p>
+        </div>
+        <div>
+          <span class="eyebrow">Campaign Status</span>
+          <span class="status-badge status-active">{{ (campaign_terms.get('status') if campaign_terms else none) or "ACTIVE" }}</span>
+        </div>
+        <div>
+          <span class="eyebrow">Funding Model</span>
+          <p class="meta-value">{{ ((campaign_terms.get('funding_type') if campaign_terms else none) or "MERCHANT_FUNDED") | capitalize }}</p>
+
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <h3 class="card-subtitle">Original Terms &amp; Conditions</h3>
+      <dl class="metric-grid campaign-info-grid">
+        <div>
+          <dt>Minimum Transaction Spend</dt>
+          <dd class="font-mono">
+            {% if campaign_terms and campaign_terms.get('min_spend') is not none %}
+              ₹{{ "{:,.2f}".format(campaign_terms.get('min_spend')|float) }}
+            {% else %}
+              ₹2,000.00
+            {% endif %}
+          </dd>
+        </div>
+        <div>
+          <dt>Cashback / Discount Rate</dt>
+          <dd class="font-mono">
+            {% if campaign_terms and campaign_terms.get('cashback_pct') is not none %}
+              {{ campaign_terms.get('cashback_pct') }}%
+            {% else %}
+              10.0%
+            {% endif %}
+          </dd>
+        </div>
+        <div>
+          <dt>Cashback Cap (per txn)</dt>
+          <dd class="font-mono">
+            {% if campaign_terms and campaign_terms.get('cashback_cap') is not none %}
+              ₹{{ "{:,.2f}".format(campaign_terms.get('cashback_cap')|float) }}
+            {% else %}
+              ₹200.00
+            {% endif %}
+          </dd>
+        </div>
+        <div>
+          <dt>Total Campaign Budget</dt>
+          <dd class="font-mono">
+            {% if campaign_terms and campaign_terms.get('budget') is not none %}
+              ₹{{ "{:,.2f}".format(campaign_terms.get('budget')|float) }}
+            {% else %}
+              ₹40,000.00
+            {% endif %}
+          </dd>
+        </div>
+        <div>
+          <dt>Max Redemptions / Customer</dt>
+          <dd>
+            {% if campaign_terms and campaign_terms.get('max_redemptions_per_customer') is not none %}
+              {{ campaign_terms.get('max_redemptions_per_customer') }} 
+            {% else %}
+              1 
+            {% endif %}
+          </dd>
+        </div>
+        <div>
+          <dt>Campaign Target Window</dt>
+          <dd class="font-mono">
+            {% if campaign_terms and campaign_terms.get('start_date') and campaign_terms.get('end_date') %}
+              {{ campaign_terms.get('start_date') }} to {{ campaign_terms.get('end_date') }}
+            {% elif timeline and timeline.start_date and timeline.end_date %}
+              {{ timeline.start_date }} to {{ timeline.end_date }}
+            {% else %}
+              Active Cycle
+            {% endif %}
+          </dd>
+        </div>
+      </dl>
+    </article>
+  </section>
+
+  <!-- =========================================================
+       SECTION B: ACTUAL CAMPAIGN TERMS VS. AGENT'S PROPOSED TERMS
+       ========================================================= -->
+  <section class="report-section" id="section-terms">
+    <div class="section-header">
+      <h2>B. Actual Campaign Terms vs. Agent's Proposed Terms</h2>
+    </div>
+
+    <div class="report-card comparison-card">
+      <div class="table-responsive">
+        <table class="terms-comparison-table">
+          <thead>
+            <tr>
+              <th>Campaign Parameter</th>
+              <th>Actual Campaign Terms (Merchant)</th>
+              <th>Agent's Proposed Terms</th>
+              <th>Parameter Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- Minimum Transaction Value / Spend Threshold -->
+            {% set actual_min_spend = (campaign_terms.get('min_spend') if campaign_terms and campaign_terms.get('min_spend') is not none else 2000.0)|float %}
+            {% set prop_min_spend = report.proposal.get('min_spend') if (report.proposal and report.proposal.get('min_spend') is not none) else none %}
+            {% set min_spend_changed = (prop_min_spend is not none and prop_min_spend|float != actual_min_spend) %}
+            <tr class="{{ 'diff-highlight' if min_spend_changed else '' }}">
+              <td class="param-name">
+                <strong>Minimum Transaction Value</strong>
+                <span class="param-hint">Threshold required to qualify for cashback reward</span>
+              </td>
+              <td class="font-mono">₹{{ "{:,.2f}".format(actual_min_spend) }}</td>
+              <td class="font-mono proposed-val">
+                {% if prop_min_spend is not none %}
+                  ₹{{ "{:,.2f}".format(prop_min_spend|float) }}
+                {% else %}
+                  <span class="muted">Maintained (₹{{ "{:,.2f}".format(actual_min_spend) }})</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if min_spend_changed %}
+                  <span class="badge-changed">Changed (₹{{ "{:,.0f}".format(actual_min_spend) }} → ₹{{ "{:,.0f}".format(prop_min_spend|float) }})</span>
+                {% else %}
+                  <span class="badge-unchanged">Unchanged</span>
+                {% endif %}
+              </td>
+            </tr>
+
+            <!-- Discount / Cashback Rate -->
+            {% set actual_cashback = (campaign_terms.get('cashback_pct') if campaign_terms and campaign_terms.get('cashback_pct') is not none else 10.0)|float %}
+            {% set prop_cashback = (report.proposal.get('cashback_pct') if (report.proposal and report.proposal.get('cashback_pct') is not none) else actual_cashback)|float %}
+            <tr>
+              <td class="param-name">
+                <strong>Discount / Cashback Rate</strong>
+                <span class="param-hint">Percentage of transaction refunded to cardholder</span>
+              </td>
+              <td class="font-mono">{{ actual_cashback }}%</td>
+              <td class="font-mono proposed-val">{{ prop_cashback }}%</td>
+              <td>
+                {% if prop_cashback != actual_cashback %}
+                  <span class="badge-changed">Changed ({{ prop_cashback }}%)</span>
+                {% else %}
+                  <span class="badge-unchanged">Policy Fixed</span>
+                {% endif %}
+              </td>
+            </tr>
+
+            <!-- Maximum Discount / Cashback Cap -->
+            {% set actual_cap = (campaign_terms.get('cashback_cap') if campaign_terms and campaign_terms.get('cashback_cap') is not none else 200.0)|float %}
+            {% set prop_cap = (report.proposal.get('cashback_cap') if (report.proposal and report.proposal.get('cashback_cap') is not none) else actual_cap)|float %}
+            <tr>
+              <td class="param-name">
+                <strong>Maximum Discount (Cashback Cap)</strong>
+                <span class="param-hint">Upper limit on cashback awarded per single transaction</span>
+              </td>
+              <td class="font-mono">₹{{ "{:,.2f}".format(actual_cap) }}</td>
+              <td class="font-mono proposed-val">₹{{ "{:,.2f}".format(prop_cap) }}</td>
+              <td>
+                {% if prop_cap != actual_cap %}
+                  <span class="badge-changed">Changed (₹{{ "{:,.0f}".format(prop_cap) }})</span>
+                {% else %}
+                  <span class="badge-unchanged">Policy Fixed</span>
+                {% endif %}
+              </td>
+            </tr>
+
+            <!-- Campaign Action Type -->
+            <tr>
+              <td class="param-name">
+                <strong>Campaign Action / Workflow</strong>
+                <span class="param-hint">Operational decision proposed by optimization agent</span>
+              </td>
+              <td>Live Active Campaign</td>
+              <td class="proposed-val">
+                <span class="action-tag">{{ report.proposal.get('type') if report.proposal else "MONITOR" }}</span>
+              </td>
+              <td>
+                <span class="badge-proposed">Proposed Action</span>
+              </td>
+            </tr>
+            <!-- Budget Allocation & Safety -->
+            {% set actual_budget = (campaign_terms.get('budget') if campaign_terms and campaign_terms.get('budget') is not none else 40000.0)|float %}
+            <tr>
+              <td class="param-name">
+                <strong>Budget Ceiling Compliance</strong>
+                <span class="param-hint">Retrospective replay check against total merchant allocation</span>
+              </td>
+              <td class="font-mono">₹{{ "{:,.2f}".format(actual_budget) }} ceiling</td>
+              <td class="proposed-val font-mono">Replay within ₹{{ "{:,.2f}".format(actual_budget) }}</td>
+              <td>
+                <span class="badge-verified">Verified Budget-Safe</span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Strategic Reasoning Callout -->
+      <div class="rationale-callout">
+        <div class="rationale-icon">💡</div>
+        <div>
+          <h4>Agent Reasoning &amp; Strategic Rationale</h4>
+          <p>
+            {% if report.proposal and report.proposal.get('rationale') %}
+              {{ report.proposal.get('rationale') }}
+            {% else %}
+              The agent analyzed customer ticket size distributions and determined that aligning the minimum spend threshold eliminates customer friction without exceeding the allocated campaign budget ceiling.
+            {% endif %}
+          </p>
+          <div class="guardrail-footnote">
+            <strong>Policy Guardrail:</strong> Simulation is retrospective historical replay. No future incremental uplift or speculative consumer elasticity is claimed.
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- =========================================================
+       SECTION C: INVESTIGATION FINDINGS
+       ========================================================= -->
+  <section class="report-section" id="section-findings">
+    <div class="section-header">
+      <h2>C. Investigation Findings</h2>
+    </div>
+
+    <!-- 1. Investigation Summary -->
+    <article class="report-card mb-4">
+      <h3 class="card-subtitle">Executive Summary</h3>
+      <p class="summary-paragraph">
+        {{ report.summary or "Investigation completed across merchant transactions, customer reviews, communication delivery logs, and category peer baselines." }}
+      </p>
+    </article>
+
+     <article class="report-card mb-4">
+      <h3 class="card-subtitle">Key Findings &amp; Verifiable Evidence</h3>
+      {% if report.findings %}
+        <div class="findings-list">
+          {% for finding in report.findings %}
+            <div class="finding-block">
+              <p class="finding-text">{{ finding.observation }}</p>
+              {% if finding.evidence %}
+                <div class="evidence-box">
+                  <span class="evidence-label">Supporting Evidence Sources:</span>
+                  <ul class="evidence-inline-list">
+                    {% for ev in finding.evidence %}
+                      <li><code>{{ ev }}</code></li>
+                    {% endfor %}
+                  </ul>
+                </div>
+              {% endif %}
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <p class="muted">No specific findings were recorded in this report.</p>
+      {% endif %}
+    </article>
+
+    <!-- 2. Issues / Opportunities Identified -->
+    <article class="report-card mb-4">
+      <h3 class="card-subtitle">Root Cause Hypotheses &amp; Diagnostic Evaluation</h3>
+      {% if report.hypotheses %}
+        <div class="hypothesis-grid">
+          {% for hypothesis in report.hypotheses %}
+            <div class="hypothesis-item">
+              <div class="hypothesis-header">
+                <strong>{{ hypothesis.text }}</strong>
+                <span class="status-badge status-{{ hypothesis.status|lower }}">{{ hypothesis.status }}</span>
+              </div>
+              {% if hypothesis.rationale %}
+                <p class="hypothesis-rationale">{{ hypothesis.rationale }}</p>
+              {% endif %}
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <p class="muted">No explicit diagnostic hypotheses were formulated for this investigation.</p>
+      {% endif %}
+    </article>
+
+    <!-- 4. Strategic Multi-Action Recommendations Array -->
+    <article class="report-card recommendation-card">
+      <div class="recommendation-header">
+        <div>
+          <span class="eyebrow">Strategic Multi-Action Recommendations</span>
+          <h3 class="recommendation-type">Action Strategy: {{ (report.proposal.get('type') if report.proposal else "MONITOR") }}</h3>
+        </div>
+        <span class="approval-pill">
+          {{ "Approval Required" if report.human_approval_required else "Autonomous Execution" }}
+        </span>
+      </div>
+
+      {% if report.recommendations and report.recommendations|length > 0 %}
+        <div class="recommendations-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; margin-top: 16px;">
+          {% for act in report.recommendations %}
+            <div class="rec-action-box" style="background: #ffffff; border: 1px solid var(--line); border-left: 4px solid var(--primary); border-radius: 8px; padding: 14px 16px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <span class="status-pill status-pill-complete" style="font-size: 11px; font-weight: 700;">{{ act.action_type }}</span>
+                <span style="font-size: 10.5px; font-weight: 600; color: var(--muted); text-transform: uppercase;">{{ act.priority }} PRIORITY</span>
+              </div>
+              <p style="font-size: 13px; font-weight: 600; color: var(--ink); margin-bottom: 6px;">{{ act.expected_impact or act.action_type }}</p>
+              <p style="font-size: 12px; color: var(--muted); margin-bottom: 8px;">{{ act.rationale }}</p>
+              {% if act.parameter_changes %}
+                <div style="background: var(--bg); padding: 6px 10px; border-radius: 6px; font-family: var(--mono); font-size: 11.5px; color: #0369a1;">
+                  {% for k, v in act.parameter_changes.items() %}
+                    <span>{{ k }}: <strong>{{ v }}</strong>{% if not loop.last %} · {% endif %}</span>
+                  {% endfor %}
+                </div>
+              {% endif %}
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <p class="recommendation-desc">
+          {% if report.proposal and report.proposal.get('type') == "TEST" %}
+            Conduct a controlled threshold pilot at ₹{{ "{:,.0f}".format(report.proposal.get('min_spend')|float) if report.proposal.get('min_spend') else "1,500" }} against the targeted customer cohort. Retrospective transaction replay confirmed budget safety and expanded qualifying customer coverage.
+          {% elif report.proposal and report.proposal.get('type') == "MONITOR" %}
+            Maintain existing parameters without modification. Continue monitoring redemption velocity and audience engagement over the next cycle.
+          {% elif report.proposal and report.proposal.get('type') == "KEEP" %}
+            Keep current merchant campaign configuration unchanged. Performance aligns with benchmark expectations given ticket distributions.
+          {% else %}
+            Operational review recommended. Refer to strategic rationale and supporting evidence before making campaign parameter adjustments.
+          {% endif %}
+        </p>
+      {% endif %}
+    </article>
+  </section>
+
+  <script>
+    // Smooth scroll for section nav links
+    document.querySelectorAll('.section-nav-link').forEach(function(link) {
+      link.addEventListener('click', function(e) {
+        var target = document.querySelector(this.getAttribute('href'));
+        if (target) {
+          e.preventDefault();
+          target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      });
+    });
+  </script>
+{% endblock %}

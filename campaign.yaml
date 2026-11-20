@@ -1,0 +1,76 @@
+agent:
+  name: merchant_offer_optimization_agent
+  model: gemini-3.5-flash
+
+objective: >
+  Investigate campaign alerts and provide evidence-backed
+  recommendations without modifying campaigns.
+
+tools:
+  - get_campaign_performance
+  - get_campaign_terms
+  - get_spend_distribution
+  - get_customer_reviews
+  - get_merchant_feedback
+  - get_delivery_metrics
+  - get_comparable_campaigns
+  - validate_proposal
+  - simulate_campaign_change
+
+policy:
+  allowed_thresholds:
+    - 1000.0
+    - 1250.0
+    - 1500.0
+    - 1750.0
+    - 2000.0
+
+  cashback_percent: 10.0
+  cashback_cap: 200.0
+
+  budget_ceiling: 40000.0
+
+investigation:
+  max_tool_calls: 9
+  retry_count: 2
+  max_retry_count: 2
+  evidence_required: true
+  citations_required: true
+  alert_cooldown_minutes: 2.0
+
+resilience:
+  retry_count: 2
+  max_retry_count: 2
+  backoff_min_sec: 0.5
+  backoff_max_sec: 2.0
+  timeout_sec: 15.0
+
+gcp:
+  project_id: prj-imp-act-campaign
+  location: asia-south1
+  bronze_dataset: offers_bronze
+  silver_dataset: offers_silver
+  gold_dataset: offers_gold
+  alerts_table: offers_gold.alerts
+
+guardrails:
+  read_only_tools: true
+  no_campaign_updates: true
+  no_customer_contact: true
+  no_future_uplift_predictions: true
+
+reporting:
+  include_findings: true
+  include_hypotheses: true
+  include_evidence_ids: true
+  include_recommendations: true
+  human_approval_required: true
+
+storage:
+  enabled: true
+  provider: gcs
+  bucket_name: prj-imp-act-campaign-data
+  reports_prefix: reports
+  local_fallback_dir: output
+  timeout_sec: 15.0
+  retry_count: 3

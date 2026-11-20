@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Merchant Offer Optimization Agent — Evidence-led campaign investigations">
+  <title>{% block title %}Merchant Offer Agent{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', path='/css/styles.css') }}">
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a class="brand" href="/" aria-label="Merchant Offer Agent home">
+        <span class="brand-mark" aria-hidden="true">M</span>
+        <span>
+          <span class="brand-title">Merchant Offer Agent</span>
+          <span class="brand-subtitle">Autonomous Campaign Anomaly Investigation</span>
+        </span>
+      </a>
+      <nav class="navigation" aria-label="Main navigation">
+        <a id="nav-alerts" class="button" href="/" {% if active_page == 'alerts' %}aria-current="page"{% endif %}>Reports</a>
+        <a id="nav-admin" class="button" href="/admin" {% if active_page == 'admin' %}aria-current="page"{% endif %}>Admin Panel</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="footer">
+    <strong>Merchant Offer Agent</strong> &middot; Evidence-Backed Campaign Anomaly Investigation &middot; Human review required for all proposed parameter modifications
+  </footer>
+</body>
+</html>
