@@ -1,20 +1,45 @@
+"""Deterministic alert detection engine for merchant offer optimization with IST timestamps and active deduplication."""
 import argparse
 import json
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Set
+from typing import Any, Dict, List, Optional, Set
 
-# Ensure src is on sys.path
-SRC_DIR = Path(__file__).resolve().parent / "src"
-if str(SRC_DIR) not in sys.path:
-    sys.path.insert(0, str(SRC_DIR))
+# Ensure src/ is on sys.path
+ROOT = Path(__file__).resolve().parent.parent
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 import core.bigquery_client as bq_client
 from core.config import get_config
 from core.logging import logger
-from core.time_utils import now_ist, now_ist_str
+from core.time_utils import IST, now_ist, now_ist_str
 from domain.rules import get_rule_queries, parse_alert_row
+
+
+def _parse_timestamp(val: Any) -> Optional[datetime]:
+    """Parse string or datetime object into a timezone-aware IST datetime."""
+    if not val:
+        return None
+    if isinstance(val, datetime):
+        if val.tzinfo is None:
+            return val.replace(tzinfo=IST)
+        return val
+    s = str(val).strip().replace(" IST", "")
+    try:
+        dt = datetime.fromisoformat(s)
+        if dt.tzinfo is None:
+            return dt.replace(tzinfo=IST)
+        return dt
+    except Exception:
+        pass
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M:%S.%f", "%Y-%m-%dT%H:%M:%S"):
+        try:
+            return datetime.strptime(s[:19], fmt).replace(tzinfo=IST)
+        except Exception:
+            pass
+    return None
 
 
 def get_active_alert_ids(project_id: str, cooldown_minutes: float = 2.0) -> Set[str]:
@@ -25,41 +50,31 @@ def get_active_alert_ids(project_id: str, cooldown_minutes: float = 2.0) -> Set[
         SELECT alert_id, status, created_at, resolved_at
         FROM `{table_id}`
         WHERE status IN ('OPEN', 'PROCESSING', 'RESOLVED')
+        ORDER BY created_at DESC
     """
     try:
         rows = bq_client.execute_query(sql)
         active_ids = set()
-        current_ist_dt = now_ist().replace(tzinfo=None)
+        now_dt = now_ist()
+        seen_alerts = set()
 
         for r in rows:
             aid = r.get("alert_id")
-            st = (r.get("status") or "").upper()
-            if not aid:
+            if not aid or aid in seen_alerts:
                 continue
+            seen_alerts.add(aid)
 
+            st = (r.get("status") or "").upper()
             # Always suppress if alert is currently open or being processed
             if st in ("OPEN", "PROCESSING"):
                 active_ids.add(aid)
             elif st == "RESOLVED":
-                # Check resolved cooldown window (default: 2 minutes)
-                resolved_str = r.get("resolved_at")
-                if not resolved_str:
-                    active_ids.add(aid)
-                    continue
-
-                try:
-                    clean_ts = resolved_str.replace(" IST", "").strip()
-                    if "T" in clean_ts:
-                        res_dt = datetime.fromisoformat(clean_ts)
-                    else:
-                        res_dt = datetime.strptime(clean_ts[:19], "%Y-%m-%d %H:%M:%S")
-
-                    diff_minutes = (current_ist_dt - res_dt).total_seconds() / 60.0
-                    if diff_minutes < cooldown_minutes:
+                resolved_val = r.get("resolved_at") or r.get("created_at")
+                res_dt = _parse_timestamp(resolved_val)
+                if res_dt is not None:
+                    diff_minutes = (now_dt - res_dt).total_seconds() / 60.0
+                    if 0 <= diff_minutes < cooldown_minutes:
                         active_ids.add(aid)
-                except Exception:
-                    # In case of unparseable timestamp, conservatively treat as active
-                    active_ids.add(aid)
 
         return active_ids
     except Exception as exc:
@@ -169,7 +184,7 @@ def main() -> None:
     parser.add_argument(
         "--project",
         default=config.gcp.project_id,
-        help="Google Cloud project ID (default: from campaign.yaml/env)",
+        help="Google Cloud project ID (default: from config/campaign.yaml or env)",
     )
     parser.add_argument(
         "--rule",

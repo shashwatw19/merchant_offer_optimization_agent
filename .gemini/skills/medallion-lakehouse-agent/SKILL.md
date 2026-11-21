@@ -86,6 +86,7 @@ merchant_offer_optimization_agent/
 │   │   ├── validation/                   # CitationVerifier & Safety Scorecard
 │   │   ├── agent.py                      # Clean runner (zero os.environ mutations)
 │   │   ├── metrics.py                    # Invocation-local telemetry & token tracker
+│   │   ├── run_alert_detection.py        # Python alert detection engine & CLI
 │   │   ├── run_alert_pipeline.py         # Batch alert pipeline orchestrator
 │   │   └── tracer.py                     # Tool execution tracer
 │   ├── core/

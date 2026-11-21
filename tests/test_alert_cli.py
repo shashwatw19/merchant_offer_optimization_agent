@@ -1,5 +1,5 @@
 import pytest
-import alert
+from agents import run_alert_detection as alert
 
 
 def test_alert_cli_dry_run_collects_alerts(monkeypatch):
@@ -83,3 +83,26 @@ def test_alert_cli_suppresses_recently_resolved_alert_in_cooldown(monkeypatch):
 
     alerts = alert.run_all_alerts(project_id="test-proj", selected_rule="R1", filter_active=True, cooldown_minutes=2.0)
     assert len(alerts) == 0  # In cooldown -> suppressed!
+
+
+def test_alert_cli_allows_alert_resolved_outside_cooldown(monkeypatch):
+    mock_r1 = [{"campaign_id": "CMP131", "rule_id": "R1", "metric_value": 4.0, "threshold": 5.0}]
+    from datetime import datetime, timezone, timedelta
+    from core.time_utils import IST
+    # Alert was resolved 10 minutes ago
+    ten_min_ago = (datetime.now(IST) - timedelta(minutes=10)).isoformat()
+    mock_existing_resolved = [{"alert_id": "A8247", "status": "RESOLVED", "resolved_at": ten_min_ago, "created_at": ten_min_ago}]
+
+    def fake_execute(sql, parameters=None, client=None):
+        if "status IN ('OPEN', 'PROCESSING', 'RESOLVED')" in sql:
+            return mock_existing_resolved
+        elif "redemption_rate < 5.00" in sql:
+            return mock_r1
+        return []
+
+    import core.bigquery_client as bq_mod
+    monkeypatch.setattr(bq_mod, "execute_query", fake_execute)
+
+    alerts = alert.run_all_alerts(project_id="test-proj", selected_rule="R1", filter_active=True, cooldown_minutes=2.0)
+    assert len(alerts) == 1  # Cooldown expired (10m > 2m) -> allowed to trigger!
+    assert alerts[0]["alert_id"] == "A8247"
