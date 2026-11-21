@@ -20,3 +20,20 @@ def test_format_investigation_prompt():
     assert "A1001" in prompt
     assert "CMP131" in prompt
     assert "INVESTIGATION MANDATE" in prompt
+    assert "PLAYBOOK R1" in prompt
+
+
+def test_specialized_playbooks():
+    from agents.playbooks import get_playbook
+
+    p1 = get_playbook("R1")
+    assert p1.rule_id == "R1"
+    assert "ADJUST_THRESHOLD" in p1.get_playbook_guidance()
+
+    p2 = get_playbook("R2")
+    assert p2.rule_id == "R2"
+    assert "PAUSE_CAMPAIGN" in p2.get_playbook_guidance()
+
+    p3 = get_playbook("R3")
+    assert p3.rule_id == "R3"
+    assert "TARGETING_OVERHAUL" in p3.get_playbook_guidance()

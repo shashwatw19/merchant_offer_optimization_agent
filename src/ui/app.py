@@ -13,32 +13,13 @@ from google.cloud import bigquery
 from starlette.templating import Jinja2Templates
 
 from agents.agent import process_alert_async, _enrich_dossier_from_traces, _clean_currency_text
-from agents.runner import ensure_agent_runs_table
-from agents.tools.alert_store import update_alert_status
 from agents.tools.bigquery_tools import get_campaign_terms
-from agents.tools.report_tools import convert_json_report_to_markdown
 from core.bigquery_client import execute_query
 from core.config import get_config
 from core.logging import logger
-
-def _ensure_env():
-    _config = get_config()
-    _gcp_project = getattr(getattr(_config, "gcp", None), "project_id", "prj-imp-act-campaign")
-    _gcp_location = getattr(getattr(_config, "gcp", None), "location", "asia-south1")
-
-    if not os.environ.get("GCP_PROJECT") and not os.environ.get("GOOGLE_CLOUD_PROJECT") and _gcp_project:
-        os.environ["GOOGLE_CLOUD_PROJECT"] = _gcp_project
-    if not os.environ.get("GOOGLE_CLOUD_LOCATION") and _gcp_location:
-        os.environ["GOOGLE_CLOUD_LOCATION"] = _gcp_location
-
-    _ENV_API_KEY = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
-    if _ENV_API_KEY:
-        os.environ["GEMINI_API_KEY"] = _ENV_API_KEY
-        os.environ["GOOGLE_API_KEY"] = _ENV_API_KEY
-    elif "GOOGLE_GENAI_USE_VERTEXAI" not in os.environ:
-        os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "true"
-
-_ensure_env()
+from services.alert_store import update_alert_status
+from services.report_converter import convert_json_report_to_markdown
+from services.run_store import ensure_agent_runs_table
 
 
 UI_DIR = Path(__file__).resolve().parent
@@ -169,10 +150,10 @@ def _agent_runs_table() -> str:
     proj = getattr(getattr(cfg, "gcp", None), "project_id", "prj-imp-act-campaign")
     gold = getattr(getattr(cfg, "gcp", None), "gold_dataset", "offers_gold")
     default_table = f"{proj}.{gold}.agent_runs"
-    table_id = os.environ.get("AGENT_RUNS_TABLE", default_table)
-    if "." not in table_id:
-        table_id = f"{gold}.{table_id}"
-    return table_id
+    configured_table = getattr(getattr(cfg, "audit", None), "runs_table", None) or default_table
+    if "." not in configured_table:
+        configured_table = f"{gold}.{configured_table}"
+    return configured_table
 
 
 _RUN_KEY_SQL = """COALESCE(run_id, CONCAT('legacy-', TO_HEX(SHA256(
@@ -747,22 +728,6 @@ def verify_evidence_endpoint(
 def investigate_alert(request: Request, alert_id: str) -> HTMLResponse:
     if not ALERT_ID_PATTERN.fullmatch(alert_id):
         return _render_error(request, "Invalid alert ID.", status_code=400)
-
-    cfg = get_config()
-    target_project = getattr(getattr(cfg, "gcp", None), "project_id", "prj-imp-act-campaign")
-    target_location = getattr(getattr(cfg, "gcp", None), "location", "asia-south1")
-    if target_project:
-        os.environ["GOOGLE_CLOUD_PROJECT"] = target_project
-        os.environ["GCP_PROJECT"] = target_project
-    if target_location:
-        os.environ["GOOGLE_CLOUD_LOCATION"] = target_location
-
-    api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
-    if api_key:
-        os.environ["GEMINI_API_KEY"] = api_key
-        os.environ["GOOGLE_API_KEY"] = api_key
-    else:
-        os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "true"
 
     try:
         alert = _fetch_open_alert(alert_id)

@@ -1,13 +1,31 @@
 """Application services for Merchant Offer Optimization Agent."""
+from services.alert_store import (
+    ensure_alert_table,
+    fetch_pending_alerts,
+    update_alert_status,
+)
 from services.evidence_service import EvidenceResolver, get_evidence_resolver
 from services.gcs_storage import GCSStorageService, get_storage_service
+from services.report_converter import convert_json_report_to_markdown
 from services.report_renderer import ReportRendererService, render_report_to_markdown
+from services.run_store import (
+    ensure_agent_runs_table,
+    fetch_all_alerts,
+    persist_agent_run,
+)
 
 __all__ = [
+    "ensure_alert_table",
+    "fetch_pending_alerts",
+    "update_alert_status",
     "EvidenceResolver",
     "get_evidence_resolver",
     "GCSStorageService",
     "get_storage_service",
+    "convert_json_report_to_markdown",
     "ReportRendererService",
     "render_report_to_markdown",
+    "ensure_agent_runs_table",
+    "fetch_all_alerts",
+    "persist_agent_run",
 ]

@@ -35,31 +35,12 @@ from agents.metrics import (
     after_tool,
     tool_error,
 )
-from agents.runner import persist_agent_run
 from core.config import get_config
 from core.logging import logger
 from prompts import format_investigation_prompt, get_system_instruction
+from services.run_store import persist_agent_run
 
 config = get_config()
-
-# Configure GCP project and location identical to bigquery_client
-_gcp_project = getattr(getattr(config, "gcp", None), "project_id", "prj-imp-act-campaign")
-_gcp_location = getattr(getattr(config, "gcp", None), "location", "asia-south1")
-
-if "GOOGLE_CLOUD_PROJECT" not in os.environ and _gcp_project:
-    os.environ["GOOGLE_CLOUD_PROJECT"] = _gcp_project
-if "GCP_PROJECT" not in os.environ and _gcp_project:
-    os.environ["GCP_PROJECT"] = _gcp_project
-if "GOOGLE_CLOUD_LOCATION" not in os.environ and _gcp_location:
-    os.environ["GOOGLE_CLOUD_LOCATION"] = _gcp_location
-
-# If Gemini API key is present in environment, sync it; otherwise use Google Cloud Vertex AI like BigQuery client
-_API_KEY = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
-if _API_KEY:
-    os.environ["GEMINI_API_KEY"] = _API_KEY
-    os.environ["GOOGLE_API_KEY"] = _API_KEY
-else:
-    os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "true"
 
 APP_NAME = "merchant_offer_app"
 USER_ID = "merchant_user"
@@ -463,22 +444,6 @@ async def process_alert_async(
     metrics_obj.attempt = max(1, metrics_obj.attempt)
     token = active_metrics.set(metrics_obj)
     agent_start = time.perf_counter()
-
-    # Configure GCP environment identical to bigquery_client
-    gcp_proj = getattr(getattr(config, "gcp", None), "project_id", "prj-imp-act-campaign")
-    gcp_loc = getattr(getattr(config, "gcp", None), "location", "asia-south1")
-    if gcp_proj:
-        os.environ["GOOGLE_CLOUD_PROJECT"] = gcp_proj
-        os.environ["GCP_PROJECT"] = gcp_proj
-    if gcp_loc:
-        os.environ["GOOGLE_CLOUD_LOCATION"] = gcp_loc
-
-    api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
-    if api_key:
-        os.environ["GEMINI_API_KEY"] = api_key
-        os.environ["GOOGLE_API_KEY"] = api_key
-    else:
-        os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "true"
 
     session = await get_or_create_session(USER_ID, session_id)
     prompt = format_investigation_prompt(alert)

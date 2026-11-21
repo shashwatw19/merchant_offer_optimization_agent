@@ -1,7 +1,7 @@
 import json
 from unittest.mock import MagicMock
 import pytest
-from agents.tools.report_tools import convert_json_report_to_markdown
+from services.report_converter import convert_json_report_to_markdown
 from services.gcs_storage import StorageResult
 
 
@@ -30,7 +30,7 @@ def test_tool_with_in_memory_data(sample_report, monkeypatch):
         object_name="reports/markdown/exec_A4004.md",
         content_type="text/markdown",
     )
-    monkeypatch.setattr("agents.tools.report_tools.get_storage_service", lambda: mock_storage)
+    monkeypatch.setattr("services.report_converter.get_storage_service", lambda: mock_storage)
 
     res = convert_json_report_to_markdown(report_data=sample_report, save_to_gcs=True)
     assert res["success"] is True
@@ -54,7 +54,7 @@ def test_tool_with_local_file(sample_report, tmp_path, monkeypatch):
         object_name="reports/markdown/exec.md",
         content_type="text/markdown",
     )
-    monkeypatch.setattr("agents.tools.report_tools.get_storage_service", lambda: mock_storage)
+    monkeypatch.setattr("services.report_converter.get_storage_service", lambda: mock_storage)
 
     res = convert_json_report_to_markdown(
         json_path=str(json_file),
@@ -76,7 +76,7 @@ def test_tool_with_gcs_uri(sample_report, monkeypatch):
         object_name="reports/markdown/exec.md",
         content_type="text/markdown",
     )
-    monkeypatch.setattr("agents.tools.report_tools.get_storage_service", lambda: mock_storage)
+    monkeypatch.setattr("services.report_converter.get_storage_service", lambda: mock_storage)
 
     res = convert_json_report_to_markdown(
         gcs_uri="gs://test-bucket/reports/json/report.json",

@@ -22,3 +22,12 @@ def test_config_env_overrides(monkeypatch):
     config = load_config()
     assert config.gcp.project_id == "test-custom-project"
     assert config.agent.model == "gemini-2.5-flash-test"
+
+
+def test_config_no_os_environ_mutation(monkeypatch):
+    import os
+    monkeypatch.delenv("GOOGLE_CLOUD_PROJECT", raising=False)
+    monkeypatch.delenv("GCP_PROJECT", raising=False)
+    load_config()
+    assert "GOOGLE_CLOUD_PROJECT" not in os.environ
+    assert "GCP_PROJECT" not in os.environ

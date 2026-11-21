@@ -1,10 +1,7 @@
-"""
-src/agents/runner.py
-Audit persistence and execution metrics runner for Merchant Offer Optimization Agent.
+"""Audit persistence and execution metrics store for Merchant Offer Optimization Agent.
+
 Persists step-by-step traces, model token usage, and proposal verdicts into BigQuery table offers_gold.agent_runs.
 """
-
-import os
 import json
 from datetime import datetime, timezone, timedelta
 from typing import List, Dict, Any, Optional
@@ -25,10 +22,10 @@ def _get_agent_runs_table() -> str:
     target_project = getattr(getattr(config, "gcp", None), "project_id", "prj-imp-act-campaign")
     gold_dataset = getattr(getattr(config, "gcp", None), "gold_dataset", "offers_gold")
     default_table = f"{target_project}.{gold_dataset}.agent_runs"
-    table_id = os.environ.get("AGENT_RUNS_TABLE", default_table)
-    if "." not in table_id:
-        table_id = f"{gold_dataset}.{table_id}"
-    return table_id
+    configured_table = getattr(getattr(config, "audit", None), "runs_table", None) or default_table
+    if "." not in configured_table:
+        configured_table = f"{gold_dataset}.{configured_table}"
+    return configured_table
 
 
 def ensure_agent_runs_table() -> None:

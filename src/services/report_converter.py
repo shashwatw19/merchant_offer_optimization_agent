@@ -1,3 +1,4 @@
+"""Report converter service converting structured JSON reports to Markdown and persisting to GCS/disk."""
 import json
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -20,18 +21,6 @@ def convert_json_report_to_markdown(
     Can read from an in-memory dictionary, a local file path, or a GCS object URI.
     Optionally persists the generated Markdown report back to Google Cloud Storage
     and/or a specified local file path.
-
-    Args:
-        report_data: In-memory dictionary matching the InvestigationReport schema.
-        json_path: Path to a local JSON report file.
-        gcs_uri: Google Cloud Storage URI (e.g. 'gs://bucket/reports/json/exec.json') or object path.
-        execution_id: Optional correlation execution ID.
-        save_to_gcs: Whether to upload the generated Markdown report to GCS (default: False).
-        output_path: Optional local destination file path to write the Markdown report.
-
-    Returns:
-        A dictionary containing success status, execution ID, alert ID, markdown content,
-        and storage destination details.
     """
     storage = get_storage_service() if (save_to_gcs or gcs_uri) else None
     raw_data: Optional[Dict[str, Any]] = None
@@ -155,4 +144,3 @@ if __name__ == "__main__":
             print(res["markdown_content"][:500] + "...\n")
     else:
         print(f"Error converting report: {res.get('error')}")
-

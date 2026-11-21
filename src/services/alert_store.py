@@ -1,3 +1,4 @@
+"""Alert storage and persistence service."""
 from typing import Any, Dict, List, Set
 from google.cloud import bigquery
 import core.bigquery_client as bq_client

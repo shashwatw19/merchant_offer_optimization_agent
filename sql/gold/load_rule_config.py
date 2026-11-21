@@ -39,16 +39,16 @@ def load_rule_config(csv_path: str = "config/rule_config.csv", batch_id: str = "
         logger.warning("No rows found in rule_config.csv")
         return False
         
-    # Create table if not exists
-    create_sql = f"""
-    CREATE TABLE IF NOT EXISTS `{table_id}` (
-        rule_id STRING NOT NULL,
-        parameter STRING NOT NULL,
-        value NUMERIC NOT NULL,
-        description STRING,
-        updated_at TIMESTAMP
-    )
-    """
+    # Create table if not exists from extracted SQL file
+    create_sql_path = Path(__file__).resolve().parent / "create_rule_config.sql"
+    if create_sql_path.is_file():
+        with open(create_sql_path, "r", encoding="utf-8") as f:
+            create_sql = f.read().format(
+                project=config.gcp.project_id,
+                gold_dataset=config.gcp.gold_dataset,
+            )
+    else:
+        create_sql = f"CREATE TABLE IF NOT EXISTS `{table_id}` (rule_id STRING, parameter STRING, value NUMERIC, description STRING, updated_at TIMESTAMP)"
     client.query(create_sql).result()
     
     # Overwrite / Sync current configuration values

@@ -8,7 +8,7 @@ from agents.metrics import (
     active_metrics,
     tool_response_failed,
 )
-from agents.runner import ensure_agent_runs_table, persist_agent_run
+from services.run_store import ensure_agent_runs_table, persist_agent_run
 
 
 def test_investigation_metrics_lifecycle():
@@ -81,9 +81,9 @@ def test_tool_response_failed_detection():
 
 def test_ensure_agent_runs_table():
     mock_client = MagicMock()
-    with patch("agents.runner.get_bigquery_client", return_value=mock_client):
+    with patch("services.run_store.get_bigquery_client", return_value=mock_client):
         # Reset initialized flag
-        import agents.runner as runner_mod
+        import services.run_store as runner_mod
         runner_mod._AGENT_RUNS_TABLE_INITIALIZED = False
 
         ensure_agent_runs_table()
@@ -93,8 +93,8 @@ def test_ensure_agent_runs_table():
 
 def test_persist_agent_run():
     mock_client = MagicMock()
-    with patch("agents.runner.get_bigquery_client", return_value=mock_client), \
-         patch("agents.runner.execute_query", return_value=[{"next_run_number": 2}]):
+    with patch("services.run_store.get_bigquery_client", return_value=mock_client), \
+         patch("services.run_store.execute_query", return_value=[{"next_run_number": 2}]):
         metrics = InvestigationMetrics()
         metrics.status = "completed"
         metrics.duration_ms = 2500.0
