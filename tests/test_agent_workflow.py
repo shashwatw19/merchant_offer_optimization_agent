@@ -4,9 +4,39 @@ from agents.agent import (
     extract_json_report,
     get_or_create_session,
     _enrich_dossier_from_traces,
+    get_runner_for_rule,
     USER_ID,
 )
 from agents.tracer import ExecutionTracer
+
+
+def test_rule_specialized_runners():
+    # Verify runners specialize instructions by rule_id
+    runner_r1 = get_runner_for_rule("R1")
+    runner_r2 = get_runner_for_rule("R2")
+    runner_r3 = get_runner_for_rule("R3")
+    runner_default = get_runner_for_rule("DEFAULT")
+
+    # 1. Distinct agents with specialized system instructions
+    assert "PLAYBOOK R1" in runner_r1.agent.instruction
+    assert "PLAYBOOK R2" not in runner_r1.agent.instruction
+
+    assert "PLAYBOOK R2" in runner_r2.agent.instruction
+    assert "PLAYBOOK R1" not in runner_r2.agent.instruction
+
+    assert "PLAYBOOK R3" in runner_r3.agent.instruction
+    assert "PLAYBOOK R1" not in runner_r3.agent.instruction
+
+    # 2. Default runner contains master instruction
+    assert "PLAYBOOK R1" in runner_default.agent.instruction
+    assert "PLAYBOOK R2" in runner_default.agent.instruction
+    assert "PLAYBOOK R3" in runner_default.agent.instruction
+
+    # 3. Cache identity and alias normalization
+    assert get_runner_for_rule("R1") is runner_r1
+    assert get_runner_for_rule("rule_1") is runner_r1
+    assert get_runner_for_rule("RULE-2") is runner_r2
+    assert get_runner_for_rule({"rule": "R3"}) is runner_r3
 
 
 def test_agent_tool_registration():

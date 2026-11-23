@@ -37,7 +37,7 @@ from agents.metrics import (
 )
 from core.config import get_config
 from core.logging import logger
-from prompts import format_investigation_prompt, get_system_instruction
+from prompts import format_investigation_prompt, get_system_instruction, normalize_rule_id
 from services.run_store import persist_agent_run
 
 config = get_config()
@@ -58,37 +58,71 @@ ALL_TOOLS = [
     simulate_campaign_change,
 ]
 
-# Instantiate LlmAgent with execution metrics callbacks if supported
-try:
-    agent = LlmAgent(
-        name=config.agent.name,
-        model=MODEL_NAME,
-        instruction=get_system_instruction(),
-        tools=ALL_TOOLS,
-        before_model_callback=before_model,
-        after_model_callback=after_model,
-        on_model_error_callback=model_error,
-        before_tool_callback=before_tool,
-        after_tool_callback=after_tool,
-        on_tool_error_callback=tool_error,
-    )
-except TypeError:
-    agent = LlmAgent(
-        name=config.agent.name,
-        model=MODEL_NAME,
-        instruction=get_system_instruction(),
-        tools=ALL_TOOLS,
-    )
+# Rule runner cache for specialized agent personas
+_RULE_RUNNERS: Dict[str, InMemoryRunner] = {}
 
+
+def _create_runner_for_rule(canonical_rule: Optional[str] = None) -> InMemoryRunner:
+    """Instantiate a rule-specialized LlmAgent and InMemoryRunner with execution metrics callbacks."""
+    instruction = get_system_instruction(canonical_rule)
+    rule_suffix = f"_{canonical_rule.lower()}" if canonical_rule else ""
+    agent_name = f"{config.agent.name}{rule_suffix}"
+
+    try:
+        rule_agent = LlmAgent(
+            name=agent_name,
+            model=MODEL_NAME,
+            instruction=instruction,
+            tools=ALL_TOOLS,
+            before_model_callback=before_model,
+            after_model_callback=after_model,
+            on_model_error_callback=model_error,
+            before_tool_callback=before_tool,
+            after_tool_callback=after_tool,
+            on_tool_error_callback=tool_error,
+        )
+    except TypeError:
+        rule_agent = LlmAgent(
+            name=agent_name,
+            model=MODEL_NAME,
+            instruction=instruction,
+            tools=ALL_TOOLS,
+        )
+
+    return InMemoryRunner(agent=rule_agent, app_name=APP_NAME)
+
+
+def get_runner_for_rule(rule_id: Optional[str] = None) -> InMemoryRunner:
+    """Retrieve or create a cached InMemoryRunner specialized for the specified rule_id."""
+    canonical_id = normalize_rule_id(rule_id)
+    cache_key = canonical_id or "DEFAULT"
+
+    if cache_key not in _RULE_RUNNERS:
+        _RULE_RUNNERS[cache_key] = _create_runner_for_rule(canonical_id)
+
+    return _RULE_RUNNERS[cache_key]
+
+
+# Default runner and root_agent for backward-compatibility
+runner = get_runner_for_rule("DEFAULT")
+agent = runner.agent
 root_agent = agent
-runner = InMemoryRunner(agent=agent, app_name=APP_NAME)
 tracer = ExecutionTracer()
 
+# Pre-warm canonical rule runners
+for _rid in ("R1", "R2", "R3"):
+    get_runner_for_rule(_rid)
 
-async def get_or_create_session(user_id: str, session_id: str):
-    """Retrieve an existing session or create a new isolated session."""
+
+async def get_or_create_session(
+    user_id: str,
+    session_id: str,
+    runner_instance: Optional[InMemoryRunner] = None,
+):
+    """Retrieve an existing session or create a new isolated session using the specified runner."""
+    target_runner = runner_instance or runner
     try:
-        session = await runner.session_service.get_session(
+        session = await target_runner.session_service.get_session(
             app_name=APP_NAME, user_id=user_id, session_id=session_id
         )
         if session:
@@ -96,19 +130,19 @@ async def get_or_create_session(user_id: str, session_id: str):
     except Exception:
         pass
 
-    return await runner.session_service.create_session(
+    return await target_runner.session_service.create_session(
         app_name=APP_NAME, user_id=user_id, session_id=session_id
     )
 
 
-async def init_session(session_id: Optional[str] = None):
+async def init_session(session_id: Optional[str] = None, runner_instance: Optional[InMemoryRunner] = None):
     sid = session_id or f"session_{int(time.time())}"
-    return await get_or_create_session(USER_ID, sid)
+    return await get_or_create_session(USER_ID, sid, runner_instance=runner_instance)
 
 
-async def get_session(session_id: Optional[str] = None):
+async def get_session(session_id: Optional[str] = None, runner_instance: Optional[InMemoryRunner] = None):
     sid = session_id or f"session_{int(time.time())}"
-    return await get_or_create_session(USER_ID, sid)
+    return await get_or_create_session(USER_ID, sid, runner_instance=runner_instance)
 
 
 def _clean_currency_text(text: str) -> str:
@@ -445,7 +479,11 @@ async def process_alert_async(
     token = active_metrics.set(metrics_obj)
     agent_start = time.perf_counter()
 
-    session = await get_or_create_session(USER_ID, session_id)
+    # Resolve rule-specialized ADK runner
+    rule_id = alert.get("rule_id") or alert.get("rule")
+    target_runner = get_runner_for_rule(rule_id)
+
+    session = await get_or_create_session(USER_ID, session_id, runner_instance=target_runner)
     prompt = format_investigation_prompt(alert)
 
     content = types.Content(role="user", parts=[types.Part(text=prompt)])
@@ -461,7 +499,7 @@ async def process_alert_async(
     step_count = 0
 
     try:
-        async for event in runner.run_async(
+        async for event in target_runner.run_async(
             user_id=USER_ID,
             session_id=session.id,
             new_message=content,

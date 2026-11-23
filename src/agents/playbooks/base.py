@@ -21,7 +21,11 @@ BASE_OPERATING_PRINCIPLES = """OPERATING PRINCIPLES:
      The database client has already retried the request with exponential backoff and exhausted its retry budget (`remaining_attempts: 0`).
      Do NOT issue another call to the same tool. Acknowledge that the data is unavailable, proceed with alternative investigation tools (e.g., reviews, feedback, or peer benchmarks), and explicitly note in your findings that this metric was unverified.
    - When a tool returns `error_type: "PERMANENT_DATA_ERROR"`:
-     The query or requested entity does not exist or has an unrecoverable error. Do NOT retry with the same arguments. Acknowledge the data gap and proceed."""
+     The query or requested entity does not exist or has an unrecoverable error. Do NOT retry with the same arguments. Acknowledge the data gap and proceed.
+8. HYPOTHESIS-DRIVEN DIAGNOSIS OVER RIGID SCRIPTING:
+   - An alert rule trigger is an observed symptom, not the definitive diagnosis.
+   - Systematically test the primary hypothesis first, but if evidence refutes it, cross-examine alternative structural, delivery, or operational branches.
+   - If proposing any threshold or parameter adjustment, you MUST validate it with validate_proposal and evaluate qualification recovery with simulate_campaign_change."""
 
 BASE_INVESTIGATION_METHODOLOGY = """INVESTIGATION METHODOLOGY:
 Step 1: Check campaign terms (get_campaign_terms) and aggregate results (get_campaign_performance).

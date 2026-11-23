@@ -1,6 +1,6 @@
 """Python prompt builder functions generating system instructions and investigation prompts."""
 from typing import Any, Dict, Optional
-from agents.playbooks.resolver import get_playbook
+from agents.playbooks.resolver import get_playbook, normalize_rule_id, _PLAYBOOKS
 from agents.playbooks.base import (
     BASE_ROLE_DESCRIPTION,
     BASE_OPERATING_PRINCIPLES,
@@ -29,14 +29,14 @@ def build_master_system_instruction() -> str:
 
 
 def get_system_instruction(rule_id: Optional[str] = None) -> str:
-    """Return the system instruction prompt. If rule_id is provided, returns rule-specialized instruction."""
-    if rule_id:
-        return get_playbook(rule_id).build_system_instruction()
+    """Return the system instruction prompt. If rule_id is provided and maps to a specialized playbook, returns rule-specialized instruction."""
+    canonical_id = normalize_rule_id(rule_id)
+    if canonical_id and canonical_id in _PLAYBOOKS:
+        return get_playbook(canonical_id).build_system_instruction()
     return build_master_system_instruction()
 
 
 def format_investigation_prompt(alert: Dict[str, Any]) -> str:
     """Format the investigation prompt with the provided alert details using the specialized playbook."""
-    rule_id = alert.get("rule_id")
-    playbook = get_playbook(rule_id)
+    playbook = get_playbook(alert)
     return playbook.build_investigation_prompt(alert)
