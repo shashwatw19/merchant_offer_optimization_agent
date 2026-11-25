@@ -116,6 +116,8 @@ WITH raw_data AS (
     `prj-imp-act-campaign.offers_silver.merchants` m
         ON TRIM(r.merchant_id) = m.merchant_id
 
+    WHERE r.batch_id = @batch_id
+
 )
 
 SELECT

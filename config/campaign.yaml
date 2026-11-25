@@ -120,5 +120,10 @@ batch:
   id_prefix: "B_"
   id_format: "%y%m%d_%H%M"
 
+pipeline:
+  raw_bucket: "prj-imp-act-campaign-data"
+  raw_prefix: "raw_data/"
+  enforce_row_watermark: true
+
 rules:
   config_file: "config/rule_config.csv"

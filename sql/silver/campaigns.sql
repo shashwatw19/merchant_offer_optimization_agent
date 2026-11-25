@@ -119,6 +119,7 @@ WITH raw_data AS (
     LEFT JOIN
     `prj-imp-act-campaign.offers_silver.merchants` m
         ON TRIM(r.merchant_id) = m.merchant_id
+    WHERE r.batch_id = @batch_id
 )
 
 SELECT

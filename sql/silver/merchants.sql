@@ -132,6 +132,7 @@ WITH raw_data AS (
 
     FROM
     `prj-imp-act-campaign.offers_bronze.merchants_raw` r
+    WHERE r.batch_id = @batch_id
 ),
 
 city_standardized AS (

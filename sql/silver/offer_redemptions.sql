@@ -130,6 +130,8 @@ WITH raw_data AS (
     `prj-imp-act-campaign.offers_silver.customers` cust
         ON TRIM(r.customer_id) = cust.customer_id
 
+    WHERE r.batch_id = @batch_id
+
 )
 
 SELECT
