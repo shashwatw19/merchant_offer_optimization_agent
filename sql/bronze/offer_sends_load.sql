@@ -22,7 +22,10 @@ CREATE TABLE IF NOT EXISTS `prj-imp-act-campaign.offers_bronze.offer_sends_raw`
     delivery_status STRING,
     channel STRING,
     batch_id STRING,
-    ingestion_ts STRING
+    ingestion_ts STRING,
+    PRIMARY KEY (send_id) NOT ENFORCED,
+    CONSTRAINT fk_bronze_offer_sends_campaign FOREIGN KEY (campaign_id) REFERENCES `prj-imp-act-campaign.offers_bronze.campaigns_raw`(campaign_id) NOT ENFORCED,
+    CONSTRAINT fk_bronze_offer_sends_customer FOREIGN KEY (customer_id) REFERENCES `prj-imp-act-campaign.offers_bronze.customers_raw`(customer_id) NOT ENFORCED
 );
 
 INSERT INTO `prj-imp-act-campaign.offers_bronze.offer_sends_raw`

@@ -24,7 +24,9 @@ CREATE TABLE IF NOT EXISTS `prj-imp-act-campaign.offers_bronze.merchant_feedback
     source_ref STRING,
     verification_status STRING,
     batch_id STRING,
-    ingestion_ts STRING
+    ingestion_ts STRING,
+    PRIMARY KEY (feedback_id) NOT ENFORCED,
+    CONSTRAINT fk_bronze_merchant_feedback_merchant FOREIGN KEY (merchant_id) REFERENCES `prj-imp-act-campaign.offers_bronze.merchants_raw`(merchant_id) NOT ENFORCED
 );
 
 INSERT INTO `prj-imp-act-campaign.offers_bronze.merchant_feedback_raw`

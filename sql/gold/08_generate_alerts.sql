@@ -17,7 +17,10 @@ CREATE TABLE IF NOT EXISTS `offers_gold.alerts` (
     resolved_at TIMESTAMP OPTIONS(description = 'Timestamp of resolution in IST'),
     summary STRING OPTIONS(description = 'Initial alert summary or findings'),
     investigation_summary STRING OPTIONS(description = 'AI agent synthesized resolution summary'),
-    batch_id STRING OPTIONS(description = 'Batch token during which alert was generated')
+    batch_id STRING OPTIONS(description = 'Batch token during which alert was generated'),
+    PRIMARY KEY (alert_id) NOT ENFORCED,
+    CONSTRAINT fk_gold_alerts_campaign FOREIGN KEY (campaign_id) REFERENCES `offers_silver.campaigns`(campaign_id) NOT ENFORCED,
+    CONSTRAINT fk_gold_alerts_merchant FOREIGN KEY (merchant_id) REFERENCES `offers_silver.merchants`(merchant_id) NOT ENFORCED
 );
 
 INSERT INTO `offers_gold.alerts` (

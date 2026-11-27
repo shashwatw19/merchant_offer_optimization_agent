@@ -43,7 +43,10 @@ CREATE TABLE IF NOT EXISTS
 
     batch_id STRING,
 
-    ingested_at DATETIME NOT NULL
+    ingested_at DATETIME NOT NULL,
+
+    PRIMARY KEY (review_id) NOT ENFORCED,
+    CONSTRAINT fk_silver_customer_reviews_merchant FOREIGN KEY (merchant_id) REFERENCES `prj-imp-act-campaign.offers_silver.merchants`(merchant_id) NOT ENFORCED
 )
 OPTIONS (
     description = "Silver customer reviews table with merchant validation and standardized timestamps"
@@ -123,6 +126,12 @@ WITH raw_data AS (
     LEFT JOIN
     `prj-imp-act-campaign.offers_silver.merchants` m
         ON TRIM(r.merchant_id) = m.merchant_id
+
+    WHERE NOT EXISTS (
+        SELECT 1
+        FROM `prj-imp-act-campaign.offers_silver.customer_reviews` t
+        WHERE t.review_id = TRIM(r.review_id)
+    )
 
 )
 

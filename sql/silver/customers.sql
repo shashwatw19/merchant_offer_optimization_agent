@@ -25,7 +25,9 @@ CREATE TABLE IF NOT EXISTS
 
     batch_id STRING,
 
-    ingested_at DATETIME NOT NULL
+    ingested_at DATETIME NOT NULL,
+
+    PRIMARY KEY (customer_id) NOT ENFORCED
 )
 OPTIONS (
     description = "Silver customer master table with standardized city and audit fields"
@@ -75,6 +77,11 @@ WITH raw_data AS (
 
     FROM
     `prj-imp-act-campaign.offers_bronze.customers_raw` r
+    WHERE NOT EXISTS (
+        SELECT 1
+        FROM `prj-imp-act-campaign.offers_silver.customers` t
+        WHERE t.customer_id = TRIM(r.customer_id)
+    )
 ),
 
 city_standardized AS (

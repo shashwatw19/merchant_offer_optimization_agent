@@ -3,7 +3,8 @@ CREATE TABLE IF NOT EXISTS `offers_gold.rule_config` (
     parameter STRING NOT NULL,
     value NUMERIC NOT NULL,
     description STRING,
-    updated_at TIMESTAMP
+    updated_at TIMESTAMP,
+    PRIMARY KEY (rule_id, parameter) NOT ENFORCED
 );
 
 MERGE `offers_gold.rule_config` T

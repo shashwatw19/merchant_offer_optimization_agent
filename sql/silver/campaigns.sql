@@ -39,7 +39,10 @@ CREATE TABLE IF NOT EXISTS
 
   batch_id STRING,
 
-  ingested_at DATETIME NOT NULL
+  ingested_at DATETIME NOT NULL,
+
+  PRIMARY KEY (campaign_id) NOT ENFORCED,
+  CONSTRAINT fk_silver_campaigns_merchant FOREIGN KEY (merchant_id) REFERENCES `prj-imp-act-campaign.offers_silver.merchants`(merchant_id) NOT ENFORCED
 );
 
 
@@ -119,6 +122,11 @@ WITH raw_data AS (
     LEFT JOIN
     `prj-imp-act-campaign.offers_silver.merchants` m
         ON TRIM(r.merchant_id) = m.merchant_id
+    WHERE NOT EXISTS (
+        SELECT 1
+        FROM `prj-imp-act-campaign.offers_silver.campaigns` t
+        WHERE t.campaign_id = TRIM(r.campaign_id)
+    )
 )
 
 SELECT

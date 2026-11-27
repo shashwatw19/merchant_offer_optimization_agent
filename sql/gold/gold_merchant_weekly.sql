@@ -1,4 +1,38 @@
-CREATE OR REPLACE TABLE `prj-imp-act-campaign.offers_gold.gold_merchant_spend_profile` AS
+CREATE OR REPLACE TABLE `prj-imp-act-campaign.offers_gold.gold_merchant_spend_profile` (
+    merchant_id STRING NOT NULL,
+    merchant_name STRING,
+    merchant_category STRING,
+    merchant_city STRING,
+    period_start DATETIME,
+    period_end DATETIME,
+    posted_txn_count INT64,
+    posted_amount_total NUMERIC,
+    avg_txn_amount NUMERIC,
+    median_txn_amount NUMERIC,
+    distinct_customer_count INT64,
+    batch_id STRING,
+    ingestion_time DATETIME,
+    quality_flag STRING,
+    PRIMARY KEY (merchant_id) NOT ENFORCED,
+    CONSTRAINT fk_gold_merchant_spend_merchant FOREIGN KEY (merchant_id) REFERENCES `prj-imp-act-campaign.offers_silver.merchants`(merchant_id) NOT ENFORCED
+);
+
+INSERT INTO `prj-imp-act-campaign.offers_gold.gold_merchant_spend_profile` (
+    merchant_id,
+    merchant_name,
+    merchant_category,
+    merchant_city,
+    period_start,
+    period_end,
+    posted_txn_count,
+    posted_amount_total,
+    avg_txn_amount,
+    median_txn_amount,
+    distinct_customer_count,
+    batch_id,
+    ingestion_time,
+    quality_flag
+)
 
 WITH merchant_txn AS (
 

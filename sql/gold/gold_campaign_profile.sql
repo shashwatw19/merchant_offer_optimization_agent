@@ -1,4 +1,47 @@
-CREATE OR REPLACE TABLE `prj-imp-act-campaign.offers_gold.gold_campaign_profile` AS
+CREATE OR REPLACE TABLE `prj-imp-act-campaign.offers_gold.gold_campaign_profile` (
+    campaign_id STRING NOT NULL,
+    merchant_id STRING NOT NULL,
+    merchant_name STRING,
+    merchant_category STRING,
+    merchant_city STRING,
+    objective STRING,
+    cmp_start_date DATETIME,
+    cmp_end_date DATETIME,
+    min_spend NUMERIC,
+    cashback_pct NUMERIC,
+    cashback_cap NUMERIC,
+    budget NUMERIC,
+    funding_type STRING,
+    max_redemptions_per_customer INT64,
+    campaign_status STRING,
+    batch_id STRING,
+    ingestion_time DATETIME,
+    quality_flag STRING,
+    PRIMARY KEY (campaign_id) NOT ENFORCED,
+    CONSTRAINT fk_gold_campaign_profile_campaign FOREIGN KEY (campaign_id) REFERENCES `prj-imp-act-campaign.offers_silver.campaigns`(campaign_id) NOT ENFORCED,
+    CONSTRAINT fk_gold_campaign_profile_merchant FOREIGN KEY (merchant_id) REFERENCES `prj-imp-act-campaign.offers_silver.merchants`(merchant_id) NOT ENFORCED
+);
+
+INSERT INTO `prj-imp-act-campaign.offers_gold.gold_campaign_profile` (
+    campaign_id,
+    merchant_id,
+    merchant_name,
+    merchant_category,
+    merchant_city,
+    objective,
+    cmp_start_date,
+    cmp_end_date,
+    min_spend,
+    cashback_pct,
+    cashback_cap,
+    budget,
+    funding_type,
+    max_redemptions_per_customer,
+    campaign_status,
+    batch_id,
+    ingestion_time,
+    quality_flag
+)
 
 WITH campaign_profile_base AS (
 

@@ -78,7 +78,7 @@ merchant_offer_optimization_agent/
 │   └── run_agent.sh                # Autonomous cognitive investigation batch trigger
 │
 ├── sql/                            # Canonical BigQuery SQL DDLs & transformations
-│   ├── setup/                      # Dataset creation & watermark/audit tables
+│   ├── setup/                      # Dataset creation & setup scripts
 │   ├── bronze/                     # Raw extraction & staging loaders
 │   ├── silver/                     # Cleansing, reference mapping, & dimension loaders
 │   ├── gold/                       # Analytical marts, rule config sync, & alert generator
@@ -94,7 +94,7 @@ merchant_offer_optimization_agent/
 │   │   └── validation/             # Citation verifiers & safety invariant override
 │   ├── core/                       # BigQuery thread-safe client, logging, & YAML config
 │   ├── domain/                     # Business policy invariants, rules, & replay logic
-│   ├── pipeline/                   # State watermarking & pipeline services
+│   ├── pipeline/                   # Pipeline services
 │   ├── services/                   # Storage, markdown rendering, & evidence services
 │   └── ui/                         # FastAPI interactive HITL workbench & admin panel
 │       ├── static/css/             # Modern stylesheet matching New BFSI layout
@@ -177,11 +177,10 @@ bash scripts/run_all.sh
 
 You can also run any pipeline stage independently:
 
-### Stage 1: Setup & Watermarks
+### Stage 1: Setup & Quarantine Tables
 Creates schemas (`offers_setup`, `offers_reference`, `offers_bronze`, `offers_silver`, `offers_gold`, `offers_dq`) and quarantine tables:
 ```bash
 bq query --project_id="$GCP_PROJECT" --location="$BQ_LOCATION" --use_legacy_sql=false < sql/setup/00_create_datasets.sql
-bq query --project_id="$GCP_PROJECT" --location="$BQ_LOCATION" --use_legacy_sql=false < sql/setup/01_create_watermark_tables.sql
 bq query --project_id="$GCP_PROJECT" --location="$BQ_LOCATION" --use_legacy_sql=false < sql/dq/01_rejected_records.sql
 ```
 

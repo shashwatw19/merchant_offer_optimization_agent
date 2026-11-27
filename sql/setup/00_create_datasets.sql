@@ -6,7 +6,7 @@
 
 CREATE SCHEMA IF NOT EXISTS `offers_bronze`
 OPTIONS (
-  description = 'Bronze raw layer: Delta ingestion of raw CSVs with load metadata and watermarks'
+  description = 'Bronze raw layer: Ingestion of raw CSVs with load metadata'
 );
 
 CREATE SCHEMA IF NOT EXISTS `offers_silver`

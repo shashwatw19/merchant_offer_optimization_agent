@@ -43,7 +43,11 @@ CREATE TABLE IF NOT EXISTS
 
     batch_id STRING,
 
-    ingested_at DATETIME NOT NULL
+    ingested_at DATETIME NOT NULL,
+
+    PRIMARY KEY (txn_id) NOT ENFORCED,
+    CONSTRAINT fk_silver_transactions_customer FOREIGN KEY (customer_id) REFERENCES `prj-imp-act-campaign.offers_silver.customers`(customer_id) NOT ENFORCED,
+    CONSTRAINT fk_silver_transactions_merchant FOREIGN KEY (merchant_id) REFERENCES `prj-imp-act-campaign.offers_silver.merchants`(merchant_id) NOT ENFORCED
 )
 OPTIONS (
     description = 'Silver transactions table with FK validations and audit tracking'
@@ -115,6 +119,12 @@ WITH raw_data AS (
     LEFT JOIN
     `prj-imp-act-campaign.offers_silver.merchants` m
         ON TRIM(r.merchant_id) = m.merchant_id
+
+    WHERE NOT EXISTS (
+        SELECT 1
+        FROM `prj-imp-act-campaign.offers_silver.transactions` t
+        WHERE t.txn_id = TRIM(r.txn_id)
+    )
 
 )
 

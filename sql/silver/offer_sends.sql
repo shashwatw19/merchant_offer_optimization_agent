@@ -43,7 +43,11 @@ CREATE TABLE IF NOT EXISTS
 
     batch_id STRING,
 
-    ingested_at DATETIME NOT NULL
+    ingested_at DATETIME NOT NULL,
+
+    PRIMARY KEY (send_id) NOT ENFORCED,
+    CONSTRAINT fk_silver_offer_sends_campaign FOREIGN KEY (campaign_id) REFERENCES `prj-imp-act-campaign.offers_silver.campaigns`(campaign_id) NOT ENFORCED,
+    CONSTRAINT fk_silver_offer_sends_customer FOREIGN KEY (customer_id) REFERENCES `prj-imp-act-campaign.offers_silver.customers`(customer_id) NOT ENFORCED
 )
 OPTIONS (
     description = 'Silver offer sends table with campaign/customer FK validation and audit tracking'
@@ -108,6 +112,12 @@ WITH raw_data AS (
     LEFT JOIN
     `prj-imp-act-campaign.offers_silver.customers` cust
         ON TRIM(r.customer_id) = cust.customer_id
+
+    WHERE NOT EXISTS (
+        SELECT 1
+        FROM `prj-imp-act-campaign.offers_silver.offer_sends` t
+        WHERE t.send_id = TRIM(r.send_id)
+    )
 
 )
 

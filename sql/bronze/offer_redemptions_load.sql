@@ -24,7 +24,11 @@ CREATE TABLE IF NOT EXISTS `prj-imp-act-campaign.offers_bronze.offer_redemptions
     status STRING,
     awarded_at STRING,
     batch_id STRING,
-    ingestion_ts STRING
+    ingestion_ts STRING,
+    PRIMARY KEY (redemption_id) NOT ENFORCED,
+    CONSTRAINT fk_bronze_offer_redemptions_txn FOREIGN KEY (txn_id) REFERENCES `prj-imp-act-campaign.offers_bronze.transactions_raw`(txn_id) NOT ENFORCED,
+    CONSTRAINT fk_bronze_offer_redemptions_campaign FOREIGN KEY (campaign_id) REFERENCES `prj-imp-act-campaign.offers_bronze.campaigns_raw`(campaign_id) NOT ENFORCED,
+    CONSTRAINT fk_bronze_offer_redemptions_customer FOREIGN KEY (customer_id) REFERENCES `prj-imp-act-campaign.offers_bronze.customers_raw`(customer_id) NOT ENFORCED
 );
 
 INSERT INTO `prj-imp-act-campaign.offers_bronze.offer_redemptions_raw`

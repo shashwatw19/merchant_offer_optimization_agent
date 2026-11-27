@@ -1,4 +1,39 @@
-CREATE OR REPLACE TABLE `prj-imp-act-campaign.offers_gold.gold_campaign_results` AS
+CREATE OR REPLACE TABLE `prj-imp-act-campaign.offers_gold.gold_campaign_results` (
+    campaign_id STRING NOT NULL,
+    merchant_id STRING NOT NULL,
+    measurement_start_date DATETIME,
+    measurement_end_date DATETIME,
+    targeted_customer_count INT64,
+    delivered_customer_count INT64,
+    redeeming_customer_count INT64,
+    redemption_rate_pct FLOAT64,
+    cashback_amt_awarded NUMERIC,
+    posted_txn_count INT64,
+    posted_txn_amount NUMERIC,
+    batch_id STRING,
+    ingestion_time DATETIME,
+    quality_flag STRING,
+    PRIMARY KEY (campaign_id) NOT ENFORCED,
+    CONSTRAINT fk_gold_campaign_results_campaign FOREIGN KEY (campaign_id) REFERENCES `prj-imp-act-campaign.offers_silver.campaigns`(campaign_id) NOT ENFORCED,
+    CONSTRAINT fk_gold_campaign_results_merchant FOREIGN KEY (merchant_id) REFERENCES `prj-imp-act-campaign.offers_silver.merchants`(merchant_id) NOT ENFORCED
+);
+
+INSERT INTO `prj-imp-act-campaign.offers_gold.gold_campaign_results` (
+    campaign_id,
+    merchant_id,
+    measurement_start_date,
+    measurement_end_date,
+    targeted_customer_count,
+    delivered_customer_count,
+    redeeming_customer_count,
+    redemption_rate_pct,
+    cashback_amt_awarded,
+    posted_txn_count,
+    posted_txn_amount,
+    batch_id,
+    ingestion_time,
+    quality_flag
+)
 
 WITH campaign_base AS (
 

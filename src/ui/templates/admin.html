@@ -368,15 +368,19 @@
 
     async function loadBatchAverages() {
       const requestId = ++batchAveragesRequest;
-      $("admin-batch-table-wrap").hidden = true;
-      setState($("admin-batch-state"), "Loading batch averages", "Please wait a moment.");
+      const batchTableWrap = $("admin-batch-table-wrap");
+      const batchState = $("admin-batch-state");
+      if (batchTableWrap) batchTableWrap.hidden = true;
+      if (batchState) setState(batchState, "Loading batch averages", "Please wait a moment.");
       try {
         const data = await fetchJson("/api/admin/batch-averages");
         if (requestId !== batchAveragesRequest) return;
         if (!Array.isArray(data.batches)) throw new Error("Invalid batch averages");
         
         if (!data.batches.length) {
-          setState($("admin-batch-state"), "No batch metrics found", "Batch averages will appear after investigation runs are recorded.");
+          if (batchState) {
+            setState(batchState, "No batch metrics found", "Batch averages will appear after investigation runs are recorded.");
+          }
           return;
         }
 
@@ -400,58 +404,71 @@
         }
 
         // Update KPI Header Cards
-        $("kpi-investigation-count").textContent = totalInvestigations.toLocaleString("en-IN");
-        $("kpi-avg-duration").textContent = durationSampleSum > 0 ? duration(weightedDurationSum / durationSampleSum) : "—";
-        $("kpi-avg-tokens").textContent = tokensSampleSum > 0 ? averageValue(weightedTokensSum / tokensSampleSum) : "—";
+        if ($("kpi-investigation-count")) {
+          $("kpi-investigation-count").textContent = totalInvestigations.toLocaleString("en-IN");
+        }
+        if ($("kpi-avg-duration")) {
+          $("kpi-avg-duration").textContent = durationSampleSum > 0 ? duration(weightedDurationSum / durationSampleSum) : "—";
+        }
+        if ($("kpi-avg-tokens")) {
+          $("kpi-avg-tokens").textContent = tokensSampleSum > 0 ? averageValue(weightedTokensSum / tokensSampleSum) : "—";
+        }
 
         // Update Batch Summary Badge
-        $("batch-count-badge").textContent = `${data.batches.length} batch${data.batches.length > 1 ? 'es' : ''}`;
+        if ($("batch-count-badge")) {
+          $("batch-count-badge").textContent = `${data.batches.length} batch${data.batches.length > 1 ? 'es' : ''}`;
+        }
 
         // Populate Batch Table Rows
         const rows = $("admin-batch-rows");
-        rows.replaceChildren();
-        for (const batch of data.batches) {
-          const row = element("tr");
-          const batchName = (batch.batch_id === "OFFER_AGENT_RUN" || batch.batch_id === "AGENT_RUN")
-            ? "Standard runs (batch not customized)"
-            : valueOrUnavailable(batch.batch_id);
+        if (rows) {
+          rows.replaceChildren();
+          for (const batch of data.batches) {
+            const row = element("tr");
+            const batchName = (batch.batch_id === "OFFER_AGENT_RUN" || batch.batch_id === "AGENT_RUN")
+              ? "Standard runs (batch not customized)"
+              : valueOrUnavailable(batch.batch_id);
 
-          const tdBatch = element("td");
-          const batchPill = element("span", batchName, "batch-name-badge");
-          tdBatch.append(batchPill);
+            const tdBatch = element("td");
+            const batchPill = element("span", batchName, "batch-name-badge");
+            tdBatch.append(batchPill);
 
-          const tdCount = element("td", metricValue(batch.investigation_count), "text-right font-mono");
+            const tdCount = element("td", metricValue(batch.investigation_count), "text-right font-mono");
 
-          const tokenCell = element("td", null, "text-right");
-          const tokenDetail = element("div", null, "batch-metric-box");
-          tokenDetail.append(
-            element("span", averageValue(batch.avg_total_tokens), "font-mono font-bold"),
-            element("small", `${metricValue(batch.token_sample_count)} runs with tokens`)
-          );
-          tokenCell.append(tokenDetail);
+            const tokenCell = element("td", null, "text-right");
+            const tokenDetail = element("div", null, "batch-metric-box");
+            tokenDetail.append(
+              element("span", averageValue(batch.avg_total_tokens), "font-mono font-bold"),
+              element("small", `${metricValue(batch.token_sample_count)} runs with tokens`)
+            );
+            tokenCell.append(tokenDetail);
 
-          const durationCell = element("td", null, "text-right");
-          const durationDetail = element("div", null, "batch-metric-box");
-          durationDetail.append(
-            element("span", duration(batch.avg_duration_ms), "font-mono font-bold"),
-            element("small", `${metricValue(batch.duration_sample_count)} runs with timing`)
-          );
-          durationCell.append(durationDetail);
+            const durationCell = element("td", null, "text-right");
+            const durationDetail = element("div", null, "batch-metric-box");
+            durationDetail.append(
+              element("span", duration(batch.avg_duration_ms), "font-mono font-bold"),
+              element("small", `${metricValue(batch.duration_sample_count)} runs with timing`)
+            );
+            durationCell.append(durationDetail);
 
-          row.append(tdBatch, tdCount, tokenCell, durationCell);
-          rows.append(row);
+            row.append(tdBatch, tdCount, tokenCell, durationCell);
+            rows.append(row);
+          }
         }
-        $("admin-batch-state").hidden = true;
-        $("admin-batch-table-wrap").hidden = false;
+        if (batchState) batchState.hidden = true;
+        if (batchTableWrap) batchTableWrap.hidden = false;
       } catch (error) {
         if (requestId !== batchAveragesRequest) return;
-        setState(
-          $("admin-batch-state"),
-          "Unable to load batch averages",
-          "Check your connection and warehouse access, then try again.",
-          true,
-          loadBatchAverages
-        );
+        console.error("Failed to load batch averages:", error);
+        if (batchState) {
+          setState(
+            batchState,
+            "Unable to load batch averages",
+            "Check your connection and warehouse access, then try again.",
+            true,
+            loadBatchAverages
+          );
+        }
       }
     }
 

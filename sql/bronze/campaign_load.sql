@@ -34,7 +34,9 @@ CREATE TABLE IF NOT EXISTS `prj-imp-act-campaign.offers_bronze.campaigns_raw`
   max_redemptions_per_customer STRING,
   status STRING,
   batch_id STRING,
-  ingestion_ts STRING
+  ingestion_ts STRING,
+  PRIMARY KEY (campaign_id) NOT ENFORCED,
+  CONSTRAINT fk_bronze_campaigns_merchant FOREIGN KEY (merchant_id) REFERENCES `prj-imp-act-campaign.offers_bronze.merchants_raw`(merchant_id) NOT ENFORCED
 );
 
 INSERT INTO `prj-imp-act-campaign.offers_bronze.campaigns_raw`

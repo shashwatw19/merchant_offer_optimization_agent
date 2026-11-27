@@ -18,7 +18,8 @@ CREATE TABLE IF NOT EXISTS
 `prj-imp-act-campaign.offers_silver.city_master`
 (
   city_id STRING NOT NULL,
-  city_standard_name STRING NOT NULL
+  city_standard_name STRING NOT NULL,
+  PRIMARY KEY (city_id) NOT ENFORCED
 );
 
 
@@ -30,7 +31,9 @@ CREATE TABLE IF NOT EXISTS
 `prj-imp-act-campaign.offers_silver.city_mapping`
 (
   city_id STRING NOT NULL,
-  city_name STRING NOT NULL
+  city_name STRING NOT NULL,
+  PRIMARY KEY (city_id, city_name) NOT ENFORCED,
+  CONSTRAINT fk_silver_city_mapping_city FOREIGN KEY (city_id) REFERENCES `prj-imp-act-campaign.offers_silver.city_master`(city_id) NOT ENFORCED
 );
 
 
@@ -99,7 +102,9 @@ CREATE TABLE IF NOT EXISTS
 
     batch_id STRING,
 
-    ingested_at DATETIME NOT NULL
+    ingested_at DATETIME NOT NULL,
+
+    PRIMARY KEY (merchant_id) NOT ENFORCED
 )
 OPTIONS (
     description = 'Silver merchant master table with standardized city mappings and audit columns'
@@ -132,6 +137,11 @@ WITH raw_data AS (
 
     FROM
     `prj-imp-act-campaign.offers_bronze.merchants_raw` r
+    WHERE NOT EXISTS (
+        SELECT 1
+        FROM `prj-imp-act-campaign.offers_silver.merchants` t
+        WHERE t.merchant_id = TRIM(r.merchant_id)
+    )
 ),
 
 city_standardized AS (

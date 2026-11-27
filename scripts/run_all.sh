@@ -16,13 +16,13 @@ echo " Unified Batch ID : ${BATCH_ID}                           "
 echo " Started At (IST) : ${RUN_START_IST}                      "
 echo "=========================================================="
 
-# Step 1: Initialize Setup Datasets & Watermark tables
-echo "--> Step 1/5: Initializing BigQuery Datasets & Watermarks..."
+# Step 1: Initialize Setup Datasets & Quarantine tables
+echo "--> Step 1/5: Initializing BigQuery Datasets & Quarantine tables..."
 PROJECT_ID="${GCP_PROJECT:-${GOOGLE_CLOUD_PROJECT:-prj-imp-act-campaign}}"
 LOCATION="${BQ_LOCATION:-${GOOGLE_CLOUD_LOCATION:-asia-south1}}"
 
 bq query --project_id="$PROJECT_ID" --location="$LOCATION" --use_legacy_sql=false < sql/setup/00_create_datasets.sql
-bq query --project_id="$PROJECT_ID" --location="$LOCATION" --use_legacy_sql=false < sql/setup/01_create_watermark_tables.sql
+bq query --project_id="$PROJECT_ID" --location="$LOCATION" --use_legacy_sql=false < sql/setup/01_create_file_tracker_table.sql
 bq query --project_id="$PROJECT_ID" --location="$LOCATION" --use_legacy_sql=false < sql/dq/01_rejected_records.sql
 
 # Step 2: Bronze Ingestion

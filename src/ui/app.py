@@ -10,16 +10,39 @@ from fastapi import FastAPI, HTTPException, Request, Query
 from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from google.cloud import bigquery
+from pydantic import BaseModel, Field
 from starlette.templating import Jinja2Templates
 
+from analytics.catalog import get_metadata_catalog
+from analytics.models import AnalystChatRequest
 from agents.agent import process_alert_async, _enrich_dossier_from_traces, _clean_currency_text
+from agents.chat_service import SafeChatBotService
+from agents.runner import ensure_agent_runs_table
+from agents.tools.alert_store import update_alert_status
 from agents.tools.bigquery_tools import get_campaign_terms
+from agents.tools.report_tools import convert_json_report_to_markdown
 from core.bigquery_client import execute_query
 from core.config import get_config
 from core.logging import logger
-from services.alert_store import update_alert_status
-from services.report_converter import convert_json_report_to_markdown
-from services.run_store import ensure_agent_runs_table
+
+def _ensure_env():
+    _config = get_config()
+    _gcp_project = getattr(getattr(_config, "gcp", None), "project_id", "prj-imp-act-campaign")
+    _gcp_location = getattr(getattr(_config, "gcp", None), "location", "asia-south1")
+
+    if not os.environ.get("GCP_PROJECT") and not os.environ.get("GOOGLE_CLOUD_PROJECT") and _gcp_project:
+        os.environ["GOOGLE_CLOUD_PROJECT"] = _gcp_project
+    if not os.environ.get("GOOGLE_CLOUD_LOCATION") and _gcp_location:
+        os.environ["GOOGLE_CLOUD_LOCATION"] = _gcp_location
+
+    _ENV_API_KEY = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+    if _ENV_API_KEY:
+        os.environ["GEMINI_API_KEY"] = _ENV_API_KEY
+        os.environ["GOOGLE_API_KEY"] = _ENV_API_KEY
+    elif "GOOGLE_GENAI_USE_VERTEXAI" not in os.environ:
+        os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "true"
+
+_ensure_env()
 
 
 UI_DIR = Path(__file__).resolve().parent
@@ -150,10 +173,10 @@ def _agent_runs_table() -> str:
     proj = getattr(getattr(cfg, "gcp", None), "project_id", "prj-imp-act-campaign")
     gold = getattr(getattr(cfg, "gcp", None), "gold_dataset", "offers_gold")
     default_table = f"{proj}.{gold}.agent_runs"
-    configured_table = getattr(getattr(cfg, "audit", None), "runs_table", None) or default_table
-    if "." not in configured_table:
-        configured_table = f"{gold}.{configured_table}"
-    return configured_table
+    table_id = os.environ.get("AGENT_RUNS_TABLE", default_table)
+    if "." not in table_id:
+        table_id = f"{gold}.{table_id}"
+    return table_id
 
 
 _RUN_KEY_SQL = """COALESCE(run_id, CONCAT('legacy-', TO_HEX(SHA256(
@@ -729,6 +752,22 @@ def investigate_alert(request: Request, alert_id: str) -> HTMLResponse:
     if not ALERT_ID_PATTERN.fullmatch(alert_id):
         return _render_error(request, "Invalid alert ID.", status_code=400)
 
+    cfg = get_config()
+    target_project = getattr(getattr(cfg, "gcp", None), "project_id", "prj-imp-act-campaign")
+    target_location = getattr(getattr(cfg, "gcp", None), "location", "asia-south1")
+    if target_project:
+        os.environ["GOOGLE_CLOUD_PROJECT"] = target_project
+        os.environ["GCP_PROJECT"] = target_project
+    if target_location:
+        os.environ["GOOGLE_CLOUD_LOCATION"] = target_location
+
+    api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+    if api_key:
+        os.environ["GEMINI_API_KEY"] = api_key
+        os.environ["GOOGLE_API_KEY"] = api_key
+    else:
+        os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "true"
+
     try:
         alert = _fetch_open_alert(alert_id)
     except HTTPException as exc:
@@ -901,3 +940,79 @@ def download_report_markdown(alert_id: str) -> PlainTextResponse:
 @app.get("/health")
 def health() -> Dict[str, str]:
     return {"status": "ok"}
+
+
+class ChatRequest(BaseModel):
+    question: str = Field(min_length=1, max_length=1000)
+    history: Optional[List[Dict[str, str]]] = Field(default_factory=list)
+
+
+class SQLValidationRequest(BaseModel):
+    sql: str = Field(min_length=1, max_length=50000)
+    request_limit: int = Field(default=100, ge=1, le=500)
+
+
+_CHAT_SERVICE: Optional[SafeChatBotService] = None
+
+
+def get_chat_service() -> SafeChatBotService:
+    global _CHAT_SERVICE
+    if _CHAT_SERVICE is None:
+        _CHAT_SERVICE = SafeChatBotService()
+    return _CHAT_SERVICE
+
+
+def set_chat_service(service: Optional[SafeChatBotService]) -> None:
+    """Override chat service (primarily used in tests)."""
+    global _CHAT_SERVICE
+    _CHAT_SERVICE = service
+
+
+@app.post("/api/chat")
+def chat_with_lakehouse(payload: ChatRequest) -> Dict[str, Any]:
+    """Ask ad-hoc questions strictly over BigQuery Silver and Gold datasets."""
+    cleaned = (payload.question or "").strip()
+    if not cleaned:
+        raise HTTPException(status_code=400, detail="Question cannot be empty.")
+    service = get_chat_service()
+    return service.ask(cleaned, history=payload.history)
+
+
+@app.post("/api/analyst/chat")
+def analyst_chat(payload: AnalystChatRequest) -> Dict[str, Any]:
+    """Structured chatbot response for integrations; the existing UI keeps using /api/chat."""
+    return get_chat_service().service.process_question(payload).model_dump()
+
+
+@app.get("/api/analyst/catalog")
+def analyst_catalog() -> Dict[str, Any]:
+    """Return the read-only schema catalog used to ground SQL generation."""
+    catalog = get_metadata_catalog()
+    return {
+        "tables": [
+            metadata.model_dump()
+            for metadata in sorted(catalog.tables.values(), key=lambda item: item.full_table_name)
+        ]
+    }
+
+
+@app.get("/api/analyst/history")
+def analyst_history(limit: int = Query(default=50, ge=1, le=100)) -> Dict[str, Any]:
+    """Return recent in-memory query metrics without exposing raw PII."""
+    metrics = get_chat_service().analytics_client.get_audit_history(limit=limit)
+    return {
+        "metrics": [
+            metric.model_dump(exclude={"user_question", "sql"})
+            for metric in metrics
+        ]
+    }
+
+
+@app.post("/api/analyst/validate-sql")
+def validate_analyst_sql(payload: SQLValidationRequest) -> Dict[str, Any]:
+    """Validate a proposed SQL query without executing it."""
+    validator = get_chat_service().validator
+    return validator.validate(
+        payload.sql,
+        request_limit=payload.request_limit,
+    ).model_dump()

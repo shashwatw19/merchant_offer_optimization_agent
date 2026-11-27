@@ -44,7 +44,12 @@ CREATE TABLE IF NOT EXISTS
 
     batch_id STRING,
 
-    ingested_at DATETIME NOT NULL
+    ingested_at DATETIME NOT NULL,
+
+    PRIMARY KEY (redemption_id) NOT ENFORCED,
+    CONSTRAINT fk_silver_offer_redemptions_txn FOREIGN KEY (txn_id) REFERENCES `prj-imp-act-campaign.offers_silver.transactions`(txn_id) NOT ENFORCED,
+    CONSTRAINT fk_silver_offer_redemptions_campaign FOREIGN KEY (campaign_id) REFERENCES `prj-imp-act-campaign.offers_silver.campaigns`(campaign_id) NOT ENFORCED,
+    CONSTRAINT fk_silver_offer_redemptions_customer FOREIGN KEY (customer_id) REFERENCES `prj-imp-act-campaign.offers_silver.customers`(customer_id) NOT ENFORCED
 )
 OPTIONS (
     description = 'Silver offer redemption table with FK validations and audit fields'
@@ -129,6 +134,12 @@ WITH raw_data AS (
     LEFT JOIN
     `prj-imp-act-campaign.offers_silver.customers` cust
         ON TRIM(r.customer_id) = cust.customer_id
+
+    WHERE NOT EXISTS (
+        SELECT 1
+        FROM `prj-imp-act-campaign.offers_silver.offer_redemptions` t
+        WHERE t.redemption_id = TRIM(r.redemption_id)
+    )
 
 )
 

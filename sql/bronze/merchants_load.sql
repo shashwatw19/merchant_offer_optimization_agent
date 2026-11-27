@@ -20,7 +20,8 @@ CREATE TABLE IF NOT EXISTS `prj-imp-act-campaign.offers_bronze.merchants_raw`
     city STRING,
     status STRING,
     batch_id STRING,
-    ingestion_ts STRING
+    ingestion_ts STRING,
+    PRIMARY KEY (merchant_id) NOT ENFORCED
 );
 
 INSERT INTO `prj-imp-act-campaign.offers_bronze.merchants_raw`
