@@ -23,6 +23,7 @@ class ExecutionTracer:
         error: Optional[str] = None,
         execution_id: Optional[str] = None,
         metrics: Optional[Dict[str, Any]] = None,
+        playbook: Optional[str] = None,
     ) -> Path:
         """Append an execution trace record to the daily JSONL trace log."""
         today = now_ist().strftime("%Y%m%d")
@@ -36,6 +37,7 @@ class ExecutionTracer:
             "alert_id": alert_id,
             "campaign_id": campaign_id,
             "model": model,
+            "playbook": playbook or (report.get("playbook") if isinstance(report, dict) else None),
             "duration_ms": duration_ms,
             "tool_call_count": len(tool_calls),
             "tool_calls": tool_calls,

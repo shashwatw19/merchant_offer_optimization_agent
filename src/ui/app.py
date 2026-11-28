@@ -17,10 +17,11 @@ from analytics.catalog import get_metadata_catalog
 from analytics.models import AnalystChatRequest
 from agents.agent import process_alert_async, _enrich_dossier_from_traces, _clean_currency_text
 from agents.chat_service import SafeChatBotService
-from agents.runner import ensure_agent_runs_table
-from agents.tools.alert_store import update_alert_status
+from services.run_store import ensure_agent_runs_table
+from services.alert_store import update_alert_status
 from agents.tools.bigquery_tools import get_campaign_terms
-from agents.tools.report_tools import convert_json_report_to_markdown
+from services.report_converter import convert_json_report_to_markdown
+from services.evalhub_adapter import extract_alert_input, format_evalhub_response
 from core.bigquery_client import execute_query
 from core.config import get_config
 from core.logging import logger
@@ -747,11 +748,8 @@ def verify_evidence_endpoint(
     )
 
 
-@app.post("/alerts/{alert_id}/investigate", name="investigate_alert")
-def investigate_alert(request: Request, alert_id: str) -> HTMLResponse:
-    if not ALERT_ID_PATTERN.fullmatch(alert_id):
-        return _render_error(request, "Invalid alert ID.", status_code=400)
-
+def _configure_agent_env() -> None:
+    """Apply GCP and Gemini environment defaults from config prior to agent execution."""
     cfg = get_config()
     target_project = getattr(getattr(cfg, "gcp", None), "project_id", "prj-imp-act-campaign")
     target_location = getattr(getattr(cfg, "gcp", None), "location", "asia-south1")
@@ -767,6 +765,14 @@ def investigate_alert(request: Request, alert_id: str) -> HTMLResponse:
         os.environ["GOOGLE_API_KEY"] = api_key
     else:
         os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "true"
+
+
+@app.post("/alerts/{alert_id}/investigate", name="investigate_alert")
+def investigate_alert(request: Request, alert_id: str) -> HTMLResponse:
+    if not ALERT_ID_PATTERN.fullmatch(alert_id):
+        return _render_error(request, "Invalid alert ID.", status_code=400)
+
+    _configure_agent_env()
 
     try:
         alert = _fetch_open_alert(alert_id)
@@ -1016,3 +1022,40 @@ def validate_analyst_sql(payload: SQLValidationRequest) -> Dict[str, Any]:
         payload.sql,
         request_limit=payload.request_limit,
     ).model_dump()
+
+
+@app.post("/api/evalhub/investigate", name="evalhub_investigate")
+async def evalhub_investigate(payload: Dict[str, Any]) -> Dict[str, Any]:
+    """JSON investigation endpoint for EvalHub live HTTP evaluation."""
+    alert_id, inline_alert = extract_alert_input(payload)
+    if not alert_id or not ALERT_ID_PATTERN.fullmatch(alert_id):
+        raise HTTPException(status_code=400, detail="Valid 'alert_id' is required.")
+
+    _configure_agent_env()
+
+    if inline_alert is not None:
+        alert = inline_alert
+    else:
+        try:
+            alert = await asyncio.to_thread(_fetch_open_alert, alert_id)
+        except HTTPException:
+            raise
+        except Exception as exc:
+            logger.exception("Could not retrieve alert for EvalHub investigation", extra={"alert_id": alert_id})
+            raise HTTPException(
+                status_code=503,
+                detail="Could not retrieve alert from BigQuery.",
+            ) from exc
+
+    try:
+        result = await process_alert_async(alert)
+    except Exception as exc:
+        logger.exception("EvalHub investigation failed", extra={"alert_id": alert_id})
+        raise HTTPException(status_code=500, detail="Investigation execution failed.") from exc
+
+    if not result.get("success") or not result.get("report"):
+        error = str(result.get("error") or "The agent did not return an investigation report.")
+        logger.error(f"EvalHub investigation failed: {error}", extra={"alert_id": alert_id})
+        raise HTTPException(status_code=502, detail=f"Investigation failed: {error}")
+
+    return format_evalhub_response(result, alert=alert)

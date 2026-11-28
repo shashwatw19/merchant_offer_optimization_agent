@@ -267,3 +267,129 @@ def test_ui_admin_investigation_detail_api(client):
         assert data["execution_metrics"]["token_totals"]["total_tokens"] == 1500
         assert len(data["tool_calls"]) == 1
         assert data["tool_calls"][0]["tool"] == "get_campaign_terms"
+
+
+def test_api_evalhub_investigate_by_alert_id(client):
+    mock_alert = {
+        "alert_id": "ALT-28e1e8c1",
+        "campaign_id": "CMP131",
+        "merchant_id": "M001",
+        "rule_id": "R1",
+        "metric_name": "redemption_rate",
+        "metric_value": 4.0,
+        "threshold_value": 5.0,
+        "status": "OPEN",
+    }
+    mock_result = {
+        "success": True,
+        "alert_id": "ALT-28e1e8c1",
+        "campaign_id": "CMP131",
+        "rule_id": "R1",
+        "report": {
+            "alert_id": "ALT-28e1e8c1",
+            "campaign_id": "CMP131",
+            "rule_id": "R1",
+            "status": "COMPLETE",
+            "summary": "Min spend ₹2,000 exceeds median ticket ₹850.",
+            "findings": [
+                {"observation": "Redemption rate is 4.0%.", "evidence": ["offers_gold.gold_campaign_results:CMP131"]}
+            ],
+            "hypotheses": [
+                {"text": "Spend threshold friction", "status": "SUPPORTED", "rationale": "Median spend is ₹850."}
+            ],
+            "recommendations": [
+                {
+                    "action_type": "ADJUST_THRESHOLD",
+                    "priority": "PRIMARY",
+                    "parameter_changes": {"min_spend": 1000.0},
+                    "expected_impact": "Lowers threshold to ₹1,000.",
+                    "risk_level": "LOW",
+                    "rationale": "Matches median spend.",
+                }
+            ],
+            "evidence": [
+                {"source": "offers_gold.gold_campaign_results", "record_id": "CMP131", "fact": "4.0% redemption"}
+            ],
+            "proposal": {"type": "TEST", "min_spend": 1000.0},
+            "future_incremental_spend": None,
+            "human_approval_required": True,
+        },
+        "tool_calls": [
+            {"type": "call", "name": "get_campaign_terms", "args": {"campaign_id": "CMP131"}, "tool_call_id": "c1"},
+            {"type": "response", "name": "get_campaign_terms", "response": "{'success': True}", "tool_call_id": "c1"},
+            {"type": "call", "name": "validate_proposal", "args": {"proposed_min_spend": 500}, "tool_call_id": "c2"},
+            {"type": "response", "name": "validate_proposal", "response": "{'allowed': False}", "tool_call_id": "c2"},
+        ],
+    }
+
+    async def fake_process_alert(alert):
+        assert alert["campaign_id"] == "CMP131"
+        return mock_result
+
+    with patch("ui.app._fetch_open_alert", return_value=mock_alert) as fetch_mock, \
+         patch("ui.app.process_alert_async", side_effect=fake_process_alert):
+        response = client.post("/api/evalhub/investigate", json={"alert_id": "ALT-28e1e8c1"})
+
+    assert response.status_code == 200
+    fetch_mock.assert_called_once_with("ALT-28e1e8c1")
+    data = response.json()
+    assert data["alert_id"] == "ALT-28e1e8c1"
+    assert data["summary"] == "Min spend ₹2,000 exceeds median ticket ₹850."
+    assert data["root_cause"] == "Spend threshold friction (Median spend is ₹850.)"
+    assert data["findings"] == ["Redemption rate is 4.0%."]
+    assert len(data["recommendations"]) == 1
+    assert "ADJUST_THRESHOLD [min_spend=1000.0]" in data["recommendations"][0]
+    assert data["evidence_used"] == [{"source": "offers_gold.gold_campaign_results", "record_id": "CMP131"}]
+    assert data["tool_calls"] == [
+        {
+            "name": "get_campaign_terms",
+            "arguments": {"campaign_id": "CMP131"},
+            "result": "{'success': True}",
+            "status": "success",
+            "call_id": "c1",
+        },
+        {
+            "name": "validate_proposal",
+            "arguments": {"proposed_min_spend": 500},
+            "result": "{'allowed': False}",
+            "status": "success",
+            "call_id": "c2",
+        },
+    ]
+
+
+def test_api_evalhub_investigate_inline_payload_and_validation(client):
+    mock_result = {
+        "success": True,
+        "report": {
+            "alert_id": "A7348",
+            "campaign_id": "CMP205",
+            "summary": "Acquisition cannibalization detected.",
+            "findings": [{"observation": "82% repeat customers.", "evidence": []}],
+            "hypotheses": [{"text": "Audience leakage", "status": "SUPPORTED"}],
+            "recommendations": [],
+            "proposal": {"type": "INVESTIGATE", "rationale": "Exclude repeat buyers."},
+            "evidence": [],
+        },
+        "tool_calls": [],
+    }
+
+    async def fake_process_alert(alert):
+        assert alert["alert_id"] == "A7348"
+        assert alert["campaign_id"] == "CMP205"
+        assert alert["rule_id"] == "R3"
+        return mock_result
+
+    with patch("ui.app._fetch_open_alert") as fetch_mock, \
+         patch("ui.app.process_alert_async", side_effect=fake_process_alert):
+        res = client.post(
+            "/api/evalhub/investigate",
+            json={"input": {"alert_id": "A7348", "campaign_id": "CMP205", "rule_id": "R3"}},
+        )
+        assert res.status_code == 200
+        fetch_mock.assert_not_called()
+        body = res.json()
+        assert body["recommendations"] == ["INVESTIGATE: Exclude repeat buyers."]
+
+        bad_res = client.post("/api/evalhub/investigate", json={"alert_id": "bad/id"})
+        assert bad_res.status_code == 400

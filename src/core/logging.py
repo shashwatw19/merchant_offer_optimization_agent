@@ -22,6 +22,12 @@ class JSONFormatter(logging.Formatter):
             log_entry["alert_id"] = record.alert_id
         if hasattr(record, "campaign_id"):
             log_entry["campaign_id"] = record.campaign_id
+        if hasattr(record, "rule_id"):
+            log_entry["rule_id"] = record.rule_id
+        if hasattr(record, "playbook"):
+            log_entry["playbook"] = record.playbook
+        if hasattr(record, "agent_name"):
+            log_entry["agent_name"] = record.agent_name
         if hasattr(record, "tool_name"):
             log_entry["tool_name"] = record.tool_name
         if hasattr(record, "duration_ms"):

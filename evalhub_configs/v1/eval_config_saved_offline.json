@@ -1,0 +1,61 @@
+{
+  "agent_type": "saved",
+  "agent_config": {},
+  "data_provider": {
+    "type": "local",
+    "golden_dataset_path": "evalhub_configs/v1/golden_dataset.json",
+    "mappings_path": "evalhub_configs/v1/scenario_mappings_smoke.json",
+    "triggers_path": null,
+    "agent_outputs_path": "evalhub_configs/v1/saved_agent_outputs.json"
+  },
+  "judge_enabled": false,
+  "judge_model": null,
+  "baseline_run_id": null,
+  "generate_pdf": true,
+  "metrics": [
+    {
+      "name": "root_cause_accuracy",
+      "threshold": 0.7,
+      "required": true
+    },
+    {
+      "name": "recommendation_quality",
+      "threshold": 0.7,
+      "required": true
+    },
+    {
+      "name": "findings_accuracy",
+      "threshold": 0.7,
+      "required": true
+    },
+    {
+      "name": "tool_accuracy",
+      "threshold": 0.8,
+      "required": true,
+      "options": {
+        "penalize_failed_calls": true
+      }
+    },
+    {
+      "name": "evidence_coverage",
+      "threshold": 0.8,
+      "required": true
+    },
+    {
+      "name": "hallucination",
+      "threshold": 0.8,
+      "required": false,
+      "options": {
+        "require_judge": false
+      }
+    },
+    {
+      "name": "geval",
+      "threshold": 0.7,
+      "required": false,
+      "options": {
+        "require_judge": false
+      }
+    }
+  ]
+}

@@ -1,0 +1,70 @@
+{
+  "agent_type": "http",
+  "agent_config": {
+    "url": "http://127.0.0.1:8080/api/evalhub/investigate",
+    "method": "POST",
+    "input_field": "alert_id",
+    "response_path": null,
+    "tool_calls_path": null,
+    "retrieval_context_path": null,
+    "timeout_seconds": 60,
+    "retries": 0
+  },
+  "data_provider": {
+    "type": "local",
+    "golden_dataset_path": "evalhub_configs/v1/golden_dataset.json",
+    "mappings_path": "evalhub_configs/v1/scenario_mappings.json",
+    "triggers_path": "evalhub_configs/v1/triggers.json",
+    "agent_outputs_path": null
+  },
+  "judge_enabled": false,
+  "judge_model": null,
+  "baseline_run_id": null,
+  "generate_pdf": true,
+  "metrics": [
+    {
+      "name": "root_cause_accuracy",
+      "threshold": 0.7,
+      "required": true
+    },
+    {
+      "name": "recommendation_quality",
+      "threshold": 0.7,
+      "required": true
+    },
+    {
+      "name": "findings_accuracy",
+      "threshold": 0.7,
+      "required": true
+    },
+    {
+      "name": "tool_accuracy",
+      "threshold": 0.8,
+      "required": true,
+      "options": {
+        "penalize_failed_calls": true
+      }
+    },
+    {
+      "name": "evidence_coverage",
+      "threshold": 0.8,
+      "required": true
+    },
+    {
+      "name": "hallucination",
+      "threshold": 0.8,
+      "required": false,
+      "options": {
+        "require_judge": false
+      }
+    },
+    {
+      "name": "geval",
+      "threshold": 0.7,
+      "required": false,
+      "options": {
+        "require_judge": false
+      }
+    }
+  ]
+}

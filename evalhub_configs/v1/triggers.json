@@ -1,0 +1,44 @@
+[
+  {
+    "alert_id": "A1001",
+    "scenario_id": "SCEN_01_R1_SPEND_BARRIER",
+    "payload": {
+      "alert_id": "A1001",
+      "campaign_id": "CMP131",
+      "merchant_id": "M001",
+      "rule_id": "R1",
+      "metric_name": "redemption_rate",
+      "metric_value": 4.0,
+      "threshold_value": 5.0,
+      "status": "OPEN"
+    }
+  },
+  {
+    "alert_id": "A4668",
+    "scenario_id": "SCEN_02_R2_OPERATIONAL_DROP",
+    "payload": {
+      "alert_id": "A4668",
+      "campaign_id": "CMP310",
+      "merchant_id": "M001",
+      "rule_id": "R2",
+      "metric_name": "period_redemption_drop_pct",
+      "metric_value": 55.0,
+      "threshold_value": 50.0,
+      "status": "OPEN"
+    }
+  },
+  {
+    "alert_id": "A7348",
+    "scenario_id": "SCEN_03_R3_ACQUISITION_CANNIBALIZATION",
+    "payload": {
+      "alert_id": "A7348",
+      "campaign_id": "CMP205",
+      "merchant_id": "M002",
+      "rule_id": "R3",
+      "metric_name": "existing_customer_share_pct",
+      "metric_value": 82.0,
+      "threshold_value": 75.0,
+      "status": "OPEN"
+    }
+  }
+]

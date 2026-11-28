@@ -1,0 +1,31 @@
+{
+  "agent": {
+    "type": "http",
+    "endpoint": "http://127.0.0.1:8080/api/evalhub/investigate",
+    "timeout_seconds": 120,
+    "retries": 0,
+    "auth_env": null,
+    "auth_header": "Authorization",
+    "auth_prefix": "Bearer "
+  },
+  "metrics": [
+    "root_cause_accuracy",
+    "recommendation_quality",
+    "findings_accuracy",
+    "tool_accuracy",
+    "hallucination"
+  ],
+  "reports": {
+    "html": true,
+    "pdf": true
+  },
+  "pass_threshold": 70.0,
+  "metric_thresholds": {
+    "tool_accuracy": 80.0
+  },
+  "judge": {
+    "enabled": null,
+    "provider": "auto",
+    "model": null
+  }
+}

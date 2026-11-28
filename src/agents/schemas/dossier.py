@@ -166,6 +166,8 @@ class InvestigationDossier(BaseModel):
     alert_id: str = Field(description="The alert investigated (e.g. 'ALT-202611-001')")
     campaign_id: str = Field(description="The underperforming campaign ID (e.g. 'CMP131')")
     merchant_id: Optional[str] = Field(default=None, description="The merchant associated with the campaign")
+    rule_id: Optional[str] = Field(default=None, description="The alert rule identifier (e.g. 'R1', 'R2', 'R3')")
+    playbook: Optional[str] = Field(default=None, description="The specialized playbook applied")
     execution_id: Optional[str] = Field(default=None, description="Unique execution correlation ID")
     generated_at: str = Field(default_factory=now_ist_str, description="Execution completion timestamp in IST")
     status: str = Field(default="COMPLETE", description="Investigation state")

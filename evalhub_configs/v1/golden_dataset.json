@@ -1,0 +1,85 @@
+[
+  {
+    "scenario_id": "SCEN_01_R1_SPEND_BARRIER",
+    "input": {
+      "alert_id": "A1001"
+    },
+    "expected_output": {
+      "root_cause": "Minimum spend threshold (₹2,000) is significantly higher than Spice Route Kitchen's median customer ticket size (₹850), creating spend barrier friction alongside geographic city mismatch (61.33% out-of-city targeting).",
+      "recommendations": [
+        "ADJUST_THRESHOLD: Lower min_spend from ₹2,000 to an allowlisted threshold of ₹1,000 or ₹1,500 (keeping 10% cashback and ₹200 cap) after policy validation and historical replay simulation.",
+        "TARGETING_OVERHAUL: Restrict campaign delivery to customers residing in Pune.",
+        "MONITOR_VELOCITY: Track post-change redemption velocity and budget burn with mandatory human approval."
+      ],
+      "findings": [
+        "Campaign CMP131 recorded a 4.0% redemption rate (6 of 141 delivered customers), below the 5.0% R1 threshold.",
+        "Merchant M001 historical spend profile shows median transaction amount ₹850 (average ₹882.32), far below the configured ₹2,000 minimum spend threshold.",
+        "Delivery metrics show 61.33% of targeted customers reside outside Pune, limiting in-person redemption."
+      ],
+      "tools": [
+        "get_campaign_terms",
+        "get_campaign_performance",
+        "get_spend_distribution",
+        "get_delivery_metrics",
+        "get_customer_reviews",
+        "get_merchant_feedback",
+        "get_comparable_campaigns",
+        "validate_proposal",
+        "simulate_campaign_change"
+      ]
+    }
+  },
+  {
+    "scenario_id": "SCEN_02_R2_OPERATIONAL_DROP",
+    "input": {
+      "alert_id": "A4668"
+    },
+    "expected_output": {
+      "root_cause": "Mid-campaign physical operational disruption (kitchen renovation recorded in merchant feedback FB045) caused redemption velocity to collapse by >= 50% in Period 2.",
+      "recommendations": [
+        "PAUSE_CAMPAIGN: Pause campaign CMP310 during active store renovation or EXTEND_CAMPAIGN post-renovation.",
+        "MERCHANT_ESCALATION: Escalate operational disruption to the relationship manager; do not recommend passive KEEP."
+      ],
+      "findings": [
+        "Period 2 redemption velocity dropped by more than 50% compared to Period 1 baseline for campaign CMP310.",
+        "Merchant feedback FB045 confirms kitchen renovation during mid-campaign, explaining the abrupt drop in in-store redemptions.",
+        "Customer reviews (e.g. REV108) corroborate service disruption or friction during the evaluation window."
+      ],
+      "tools": [
+        "get_campaign_terms",
+        "get_campaign_performance",
+        "get_merchant_feedback",
+        "get_customer_reviews",
+        "get_delivery_metrics"
+      ]
+    }
+  },
+  {
+    "scenario_id": "SCEN_03_R3_ACQUISITION_CANNIBALIZATION",
+    "input": {
+      "alert_id": "A7348"
+    },
+    "expected_output": {
+      "root_cause": "New-customer acquisition campaign (ACQUIRE_NEW) is cannibalized by repeat patrons (>= 75% existing customer share) due to audience targeting leakage and an elevated trial spend barrier.",
+      "recommendations": [
+        "TARGETING_OVERHAUL: Apply strict first-time shopper exclusion lists so repeat customers are excluded from ACQUIRE_NEW dispatches.",
+        "ADJUST_THRESHOLD: Lower trial min_spend to an allowlisted entry threshold (e.g. ₹1,000 or ₹1,250) validated via validate_proposal and simulate_campaign_change.",
+        "MERCHANT_ESCALATION: Audit POS coupon/code validation if in-store staff misuse is observed."
+      ],
+      "findings": [
+        "Campaign CMP205 has objective ACQUIRE_NEW, but 82.0% of redeemers are pre-existing merchant customers, breaching the 75.0% R3 ceiling.",
+        "Audience delivery cohort failed to exclude historical transacting customers and/or set a high trial barrier."
+      ],
+      "tools": [
+        "get_campaign_terms",
+        "get_campaign_performance",
+        "get_delivery_metrics",
+        "get_spend_distribution",
+        "get_customer_reviews",
+        "get_merchant_feedback",
+        "validate_proposal",
+        "simulate_campaign_change"
+      ]
+    }
+  }
+]

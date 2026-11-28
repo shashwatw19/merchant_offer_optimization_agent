@@ -1,0 +1,22 @@
+[
+  {
+    "alert_id": "A1001",
+    "scenario_id": "SCEN_01_R1_SPEND_BARRIER"
+  },
+  {
+    "alert_id": "ALT-28e1e8c1",
+    "scenario_id": "SCEN_01_R1_SPEND_BARRIER"
+  },
+  {
+    "alert_id": "A8247",
+    "scenario_id": "SCEN_01_R1_SPEND_BARRIER"
+  },
+  {
+    "alert_id": "A4668",
+    "scenario_id": "SCEN_02_R2_OPERATIONAL_DROP"
+  },
+  {
+    "alert_id": "A7348",
+    "scenario_id": "SCEN_03_R3_ACQUISITION_CANNIBALIZATION"
+  }
+]

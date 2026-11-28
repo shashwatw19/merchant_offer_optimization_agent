@@ -116,6 +116,7 @@ def test_tracer_writes_valid_jsonl(tmp_path):
         tool_calls=[{"name": "get_campaign_terms", "type": "call"}],
         report={"alert_id": "A1001"},
         duration_ms=125.5,
+        playbook="R1",
     )
     assert trace_file.exists()
     with open(trace_file, "r", encoding="utf-8") as f:
@@ -123,6 +124,7 @@ def test_tracer_writes_valid_jsonl(tmp_path):
         assert "A1001" in line
         assert "CMP131" in line
         assert "get_campaign_terms" in line
+        assert '"playbook": "R1"' in line
 
 
 def test_enrich_dossier_from_traces_populates_empty_sections():
@@ -168,4 +170,8 @@ def test_enrich_dossier_from_traces_populates_empty_sections():
     # 4. Findings and evidence must contain real citations
     assert len(dossier["findings"]) >= 2
     assert len(dossier["evidence"]) >= 2
+
+    # 5. Rule and playbook tracking
+    assert dossier["rule_id"] == "R1"
+    assert dossier["playbook"] == "R1"
 

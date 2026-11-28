@@ -36,7 +36,8 @@ async def process_alert_batch(
     for alert in alerts:
         alert_id = alert["alert_id"]
         campaign_id = alert["campaign_id"]
-        logger.info(f"Starting investigation for alert {alert_id} (Campaign: {campaign_id}, Batch: {eff_batch_id})")
+        rule_id = alert.get("rule_id") or alert.get("rule") or "DEFAULT"
+        logger.info(f"Starting investigation for alert {alert_id} (Campaign: {campaign_id}, Rule: {rule_id}, Batch: {eff_batch_id})")
 
         if not dry_run:
             update_alert_status(alert_id, "PROCESSING")
@@ -55,7 +56,8 @@ async def process_alert_batch(
                     pass
             exec_id = result.get("execution_id") or report.get("execution_id") or f"exec_{alert_id}"
             summary = report.get("summary") or "Investigation completed successfully."
-            logger.info(f"Alert {alert_id} investigation completed successfully (Exec: {exec_id}).")
+            playbook_used = result.get("playbook") or rule_id
+            logger.info(f"Alert {alert_id} investigation completed successfully (Exec: {exec_id}, Playbook: {playbook_used}).")
 
             # If an output_dir is explicitly specified, save local copy; otherwise rely solely on BigQuery
             if output_dir:

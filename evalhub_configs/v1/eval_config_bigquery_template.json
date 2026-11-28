@@ -1,0 +1,75 @@
+{
+  "agent_type": "http",
+  "agent_config": {
+    "url": "http://127.0.0.1:8080/api/evalhub/investigate",
+    "method": "POST",
+    "input_field": "alert_id",
+    "response_path": null,
+    "tool_calls_path": null,
+    "retrieval_context_path": null,
+    "timeout_seconds": 60,
+    "retries": 0
+  },
+  "data_provider": {
+    "type": "bigquery",
+    "connection_params": {
+      "project": "prj-imp-act-campaign",
+      "location": "asia-south1"
+    },
+    "queries": {
+      "golden_dataset": "SELECT scenario_id, expected_findings, expected_root_cause, expected_recommendations, expected_tools, expected_evidence, retrieval_context FROM `prj-imp-act-campaign.offers_gold.eval_golden_dataset`",
+      "scenario_mappings": "SELECT alert_id, scenario_id FROM `prj-imp-act-campaign.offers_gold.eval_scenario_mappings`"
+    }
+  },
+  "judge_enabled": true,
+  "judge_model": "gemini-2.0-flash",
+  "baseline_run_id": null,
+  "generate_pdf": true,
+  "metrics": [
+    {
+      "name": "root_cause_accuracy",
+      "threshold": 0.7,
+      "required": true
+    },
+    {
+      "name": "recommendation_quality",
+      "threshold": 0.7,
+      "required": true
+    },
+    {
+      "name": "findings_accuracy",
+      "threshold": 0.7,
+      "required": true
+    },
+    {
+      "name": "tool_accuracy",
+      "threshold": 0.8,
+      "required": true,
+      "options": {
+        "penalize_failed_calls": true
+      }
+    },
+    {
+      "name": "evidence_coverage",
+      "threshold": 0.8,
+      "required": true
+    },
+    {
+      "name": "hallucination",
+      "threshold": 0.8,
+      "required": false,
+      "options": {
+        "require_judge": true
+      }
+    },
+    {
+      "name": "geval",
+      "threshold": 0.75,
+      "required": false,
+      "options": {
+        "criteria": "Evaluate whether the investigation dossier accurately identifies the root cause, cites verified BigQuery sources, adheres to policy allowlists (min_spend in [1000, 1250, 1500, 1750, 2000], cashback_percent 10, cashback_cap 200), forbids predictive revenue promises, and enforces active intervention when red flags exist.",
+        "require_judge": true
+      }
+    }
+  ]
+}

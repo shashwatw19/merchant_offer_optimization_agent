@@ -1,0 +1,21 @@
+[
+  {
+    "alert_id": "A1001",
+    "scenario_id": "SCEN_01_R1_SPEND_BARRIER",
+    "summary": "Spice Route Kitchen threshold friction investigated.",
+    "findings": [
+      "4% redemption"
+    ],
+    "root_cause": "Threshold restrictive",
+    "recommendations": [
+      "TEST: min_spend=1500"
+    ],
+    "tool_calls": [],
+    "evidence_used": [
+      {
+        "source": "gold_results",
+        "record_id": "bq:gold_results"
+      }
+    ]
+  }
+]

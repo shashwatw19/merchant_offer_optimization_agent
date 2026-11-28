@@ -1,0 +1,21 @@
+{
+  "adapter": "generic",
+  "judge_enabled": false,
+  "metrics": [
+    {
+      "name": "exact_match",
+      "threshold": 1.0,
+      "required": false
+    },
+    {
+      "name": "tool_coverage",
+      "threshold": 0.8,
+      "required": false
+    },
+    {
+      "name": "evidence_reference_validity",
+      "threshold": 1.0,
+      "required": true
+    }
+  ]
+}

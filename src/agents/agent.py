@@ -319,6 +319,8 @@ def _enrich_dossier_from_traces(
     dossier["alert_id"] = dossier.get("alert_id") or alert_id
     dossier["campaign_id"] = dossier.get("campaign_id") or campaign_id
     dossier["merchant_id"] = dossier.get("merchant_id") or merchant_id
+    dossier["rule_id"] = dossier.get("rule_id") or rule_id
+    dossier["playbook"] = dossier.get("playbook") or rule_id
     dossier["execution_id"] = dossier.get("execution_id") or exec_id
     dossier["generated_at"] = dossier.get("generated_at") or now_str
     dossier["status"] = "COMPLETE"
@@ -482,6 +484,16 @@ async def process_alert_async(
     # Resolve rule-specialized ADK runner
     rule_id = alert.get("rule_id") or alert.get("rule")
     target_runner = get_runner_for_rule(rule_id)
+    canonical_rule = normalize_rule_id(rule_id) or "DEFAULT"
+    logger.info(
+        f"Alert {alert_id} assigned to runner '{target_runner.agent.name}' using playbook '{canonical_rule}'",
+        extra={
+            "alert_id": alert_id,
+            "rule_id": canonical_rule,
+            "playbook": canonical_rule,
+            "agent_name": target_runner.agent.name,
+        },
+    )
 
     session = await get_or_create_session(USER_ID, session_id, runner_instance=target_runner)
     prompt = format_investigation_prompt(alert)
@@ -657,6 +669,7 @@ async def process_alert_async(
             duration_ms=duration_ms,
             execution_id=exec_id,
             metrics=metrics,
+            playbook=canonical_rule,
         )
 
         return {
@@ -664,6 +677,9 @@ async def process_alert_async(
             "execution_id": exec_id,
             "alert_id": alert_id,
             "campaign_id": campaign_id,
+            "rule_id": canonical_rule,
+            "playbook": canonical_rule,
+            "agent_name": target_runner.agent.name,
             "report": parsed_report,
             "raw_text": final_text,
             "tool_call_count": len([t for t in tool_calls_trace if t.get("type") == "call"]),
@@ -721,12 +737,16 @@ async def process_alert_async(
             error=str(exc),
             execution_id=exec_id,
             metrics=metrics,
+            playbook=canonical_rule,
         )
         return {
             "success": False,
             "execution_id": exec_id,
             "alert_id": alert_id,
             "campaign_id": campaign_id,
+            "rule_id": canonical_rule,
+            "playbook": canonical_rule,
+            "agent_name": target_runner.agent.name,
             "error": str(exc),
             "report": None,
             "tool_calls": tool_calls_trace,
